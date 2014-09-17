@@ -1,0 +1,55 @@
+#!/bin/bash
+
+pushd `dirname $0`
+. settings.sh
+
+if [[ $mini_feature == 1 ]]; then
+	echo "Using minimal featurelist, some features would be not support."
+	feature_flags="--disable-everything \
+	--enable-decoders --enable-demuxers --enable-parsers \
+	--enable-muxers --enable-encoders --enable-protocols \
+	--enable-encoder=libx264 --enable-libx264 --enable-decoder=h264 --enable-muxer=h264 --enable-demuxer=h264 \
+	--enable-decoder=rawvideo \
+	--enable-protocol=file \
+	--enable-hwaccels"
+fi
+
+pushd ffmpeg
+if [[ ! -d "../x264" ]]; then
+	echo "can not found x264 directory"
+fi
+
+./configure --enable-cross-compile \
+--arch=arm \
+--sysroot="../toolchain/sysroot/" \
+--cross-prefix="../toolchain/bin/arm-linux-androideabi-" \
+--target-os=linux \
+--disable-stripping \
+--prefix=../output \
+--disable-neon \
+--enable-version3 \
+--ar=arm-linux-androideabi-ar \
+--disable-shared \
+--enable-static \
+--enable-gpl \
+--enable-memalign-hack \
+--cc=arm-linux-androideabi-gcc \
+--ld=arm-linux-androideabi-ld \
+--extra-cflags="-Os -fPIC -marm" \
+$feature_flags \
+--disable-ffmpeg \
+--disable-ffplay \
+--disable-ffprobe \
+--disable-ffserver \
+--disable-network \
+--enable-filter=buffer \
+--enable-filter=buffersink \
+--disable-demuxer=v4l \
+--disable-demuxer=v4l2 \
+--disable-indev=v4l \
+--disable-indev=v4l2 \
+--extra-libs=-lx264 \
+--extra-cflags="-I../x264/android_x264/include -march=armv7-a" \
+--extra-ldflags="-L../x264/android_x264/lib"
+
+popd;popd
