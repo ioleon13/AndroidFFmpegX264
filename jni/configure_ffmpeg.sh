@@ -16,7 +16,7 @@ fi
 
 pushd ffmpeg
 
-TOOLCHAIN=/tmp/vplayer
+TOOLCHAIN=../toolchain
 SYSROOT=$TOOLCHAIN/sysroot/
 $NDK_HOME/build/tools/make-standalone-toolchain.sh --platform=android-19 --install-dir=$TOOLCHAIN
 
@@ -70,7 +70,7 @@ FFMPEG_FLAGS="--target-os=linux \
   --enable-asm \
   --enable-version3"
 
-VERSION=armv7
+#VERSION=armv7
 
 EXTRA_CFLAGS="-I../x264/android_x264/include -march=armv7-a"
 EXTRA_LDFLAGS="-L../x264/android_x264/lib"

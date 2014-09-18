@@ -1,6 +1,8 @@
 #!/bin/bash
 
-export PREBUILT=$NDK_HOME/toolchains/arm-linux-androideabi-4.8/prebuilt/linux-x86_64/bin
+#export PREBUILT=$NDK_HOME/toolchains/arm-linux-androideabi-4.8/prebuilt/linux-x86_64/bin
+#The directory in Mac os
+export PREBUILT=$NDK_HOME/toolchains/arm-linux-androideabi-4.8/prebuilt/darwin-x86_64/bin
 export PLATFORM=$NDK_HOME/platforms/android-19/arch-arm
 pushd `dirname $0`
 . settings.sh
