@@ -27,6 +27,6 @@ libpostproc/libpostproc.a)
 
 LOCAL_CFLAGS += -g -Iffmpeg -Wno-deprecated-declarations
 LOCAL_LDLIBS += -lz $(FFMPEG_LIBS) x264/android_x264/lib/libx264.a
-LOCAL_SRC_FILES := com_example_androidffmpegx264_FFmpegTest.c
+LOCAL_SRC_FILES := com_example_androidffmpegx264_H264Encoder.c
 
 include $(BUILD_SHARED_LIBRARY)
