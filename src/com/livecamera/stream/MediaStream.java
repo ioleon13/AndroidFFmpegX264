@@ -2,6 +2,7 @@ package com.livecamera.stream;
 
 import com.livecamera.encoder.h264encoder;
 
+import android.annotation.SuppressLint;
 import android.media.MediaCodec;
 import android.media.MediaRecorder;
 import android.util.Log;
@@ -17,6 +18,8 @@ public class MediaStream {
 	//suggested encoded method
 	protected static byte mSuggestedMode = MODE_FFMPEGX264_API;
 	protected byte mMode;
+	
+	protected boolean mStreaming = false;
 	
 	protected h264encoder mH264Encoder;
 	protected MediaRecorder mMediaRecorder;
@@ -47,5 +50,28 @@ public class MediaStream {
 	public void setEncodingMethod(byte method)
 	{
 		mMode = method;
+	}
+	
+	@SuppressLint("NewApi")
+    public synchronized void stop() {
+	    if (mStreaming) {
+            try {
+                if (mMode == MODE_MEDIARECORDER_API) {
+                    mMediaRecorder.stop();
+                    mMediaRecorder.release();
+                    mMediaRecorder = null;
+                } else if (mMode == MODE_MEDIACODEC_API) {
+                    mMediaCodec.stop();
+                    mMediaCodec.release();
+                    mMediaCodec = null;
+                } else {
+                    mH264Encoder.stop();
+                    mH264Encoder.release();
+                    mH264Encoder = null;
+                }
+            } catch (Exception e) {
+                // TODO: handle exception
+            }
+        }
 	}
 }
