@@ -6,11 +6,13 @@ import java.util.concurrent.Semaphore;
 import android.annotation.SuppressLint;
 import android.hardware.Camera;
 import android.hardware.Camera.CameraInfo;
+import android.hardware.Camera.Parameters;
 import android.os.Looper;
 import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 
+import com.livecamera.encoder.h264encoder;
 import com.livecamera.stream.MediaStream;
 
 @SuppressLint("NewApi")
@@ -36,6 +38,8 @@ public class VideoStream extends MediaStream {
 	protected VideoParam mRequestedParam = VideoParam.DEFAULT_VIDEO_PARAM.clone();
 	protected VideoParam mParam = mRequestedParam.clone();
 	protected int mMaxFps = 0;
+	
+	protected int mImageFormat;
 	
 	/**
 	 * set the camera: facing back or facing front
@@ -75,21 +79,73 @@ public class VideoStream extends MediaStream {
 	            CameraInfo.CAMERA_FACING_FRONT : CameraInfo.CAMERA_FACING_BACK;
 	    setCamera(mCameraId);
 	    
-	    //stoppreview
+	    stopPreview();
 	    
 	    mFlashEnabled = false;
 	    
 	    if (previewing) {
-            //startpreview
+            startPreview();
         }
 	    
 	    if (streaming) {
-            //start
+            start();
         }
 	}
 	
 	public int getCamera() {
 	    return mCameraId;
+	}
+	
+	
+	/**
+	 * set surface view
+	 */
+	public synchronized void setSurfaceView(SurfaceView view) {
+	    mSurfaceView = view;
+	    
+	    if (mSurfaceHolderCallback != null && mSurfaceView != null
+	            && mSurfaceView.getHolder() != null) {
+	        mSurfaceView.getHolder().removeCallback(mSurfaceHolderCallback);
+        }
+	    
+	    if (mSurfaceView.getHolder() != null) {
+            mSurfaceHolderCallback = new SurfaceHolder.Callback() {
+                
+                @Override
+                public void surfaceDestroyed(SurfaceHolder arg0) {
+                    mSurfaceReady = false;
+                    stopPreview();
+                    Log.d(TAG, "Surface destroyed!");
+                }
+                
+                @Override
+                public void surfaceCreated(SurfaceHolder arg0) {
+                    mSurfaceReady = true;
+                }
+                
+                @Override
+                public void surfaceChanged(SurfaceHolder arg0, int arg1, int arg2, int arg3) {
+                    Log.d(TAG, "surface changed!");
+                }
+            };
+            
+            mSurfaceView.getHolder().addCallback(mSurfaceHolderCallback);
+            mSurfaceReady = true;
+        }
+	}
+	
+	
+	public void setPreviewOrientation(int orientation) {
+	    mOrientation = orientation;
+	}
+	
+	
+	public void setVideoParam(VideoParam videoParam) {
+	    mParam = videoParam;
+	}
+	
+	public VideoParam getVideoParam() {
+	    return mParam;
 	}
 	
 	/**
@@ -98,9 +154,66 @@ public class VideoStream extends MediaStream {
 	public synchronized void startPreview() throws RuntimeException {
 	    mPreviewRunning = true;
 	    if (!mPreviewStarted) {
+            createCamera();
+            updateCamera();
             
+            try {
+                mCamera.startPreview();
+                mPreviewStarted = true;
+            } catch (RuntimeException e) {
+                destroyCamera();
+                throw e;
+            }
         }
 	}
+	
+	/**
+	 * stop preview
+	 */
+	public synchronized void stopPreview() {
+	    mPreviewRunning = false;
+	    stop();
+	}
+	
+	
+	/**
+	 * start the stream
+	 */
+	public synchronized void start() throws IllegalStateException, IOException {
+	    if (!mPreviewStarted) {
+            mPreviewRunning = false;
+        }
+	    
+	    //start encode
+	    if (mMode == MODE_FFMPEGX264_API) {
+            encodecWithX264();
+        }
+	    
+	    Log.i(TAG, "encode params: FPS: " + mParam.framerate +
+	            " Width: " + mParam.width + " Height: " + mParam.height);
+	}
+	
+	/**
+     * stop the stream
+     */
+    public synchronized void stop() {
+        if (mCamera != null) {
+            if (mMode == MODE_MEDIACODEC_API) {
+                mCamera.setPreviewCallbackWithBuffer(null);
+            }
+            super.stop();
+            
+            if (!mPreviewRunning) {
+                destroyCamera();
+            } else {
+                try {
+                    startPreview();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
 	
 	/**
 	 * create camera
@@ -123,9 +236,30 @@ public class VideoStream extends MediaStream {
                     if (error == Camera.CAMERA_ERROR_SERVER_DIED) {
                         Log.e(TAG, "Media server died!");
                         mPreviewRunning = false;
+                        stop();
+                    } else {
+                        Log.e(TAG, "unknown error: " + error);
                     }
                 }
             });
+            
+            //set camera parameters
+            try {
+                Parameters p = mCamera.getParameters();
+                p.setRecordingHint(true);
+                mCamera.setParameters(p);
+                mCamera.setDisplayOrientation(mOrientation);
+                
+                try {
+                    mCamera.setPreviewDisplay(mSurfaceView.getHolder());
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+                
+            } catch (RuntimeException e) {
+                destroyCamera();
+                throw e;
+            }
         }
 	}
 	
@@ -160,15 +294,85 @@ public class VideoStream extends MediaStream {
         }
 	}
 	
+	
 	/**
-	 * stop the stream
+	 * destroy the camera
 	 */
-	public synchronized void stop() {
+	protected synchronized void destroyCamera() {
 	    if (mCamera != null) {
-            if (mMode == MODE_MEDIACODEC_API) {
-                mCamera.setPreviewCallbackWithBuffer(null);
+	        if (mStreaming) {
+                super.stop();
+                mCamera.stopPreview();
+                try {
+                    mCamera.release();
+                } catch (Exception e) {
+                    Log.e(TAG, e.getMessage() != null ? e.getMessage() : "unknown error");
+                }
+                
+                mCamera = null;
+                mCameraLooper.quit();
+                mPreviewStarted = false;
             }
-            super.stop();
+            
         }
 	}
+	
+	
+	/**
+	 * update the camera parameters
+	 */
+	protected synchronized void updateCamera() throws RuntimeException {
+        if (mPreviewStarted) {
+            mPreviewStarted = false;
+            mCamera.stopPreview();
+        }
+        
+        Parameters p = mCamera.getParameters();
+        mParam = VideoParam.validateSupportedResolution(p, mParam);
+        int[] max = VideoParam.getMaximumSupportedFramerate(p);
+        p.setPreviewFormat(mImageFormat);
+        p.setPreviewSize(mParam.width, mParam.height);
+        p.setPreviewFpsRange(max[0], max[1]);
+        
+        try {
+            mCamera.setParameters(p);
+            mCamera.setDisplayOrientation(mOrientation);
+            //mCamera.startPreview();
+            //mPreviewStarted = true;
+        } catch (RuntimeException e) {
+            destroyCamera();
+            throw e;
+        }
+    }
+	
+	
+	/**
+	 * encode with ffmpeg-x264
+	 */
+	protected void encodecWithX264() throws RuntimeException {
+        Log.d(TAG, "Video encoded with ffmpeg x264");
+        
+        //reopen if need
+        destroyCamera();
+        createCamera();
+        
+        try {
+            mH264Encoder = new h264encoder();
+            mH264Encoder.setVideoParam(mParam);
+            mH264Encoder.setCamera(mCamera);
+            mH264Encoder.start();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        
+        mStreaming = true;
+    }
+	
+	/**
+	 * encode with mediacodec
+	 */
+	
+	/**
+	 * encode with mediarecorder
+	 */
 }
