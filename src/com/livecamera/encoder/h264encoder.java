@@ -30,7 +30,7 @@ public class h264encoder {
         
         //save file first for testing
         try {
-            File file = new File("/sdcard/camera.h264");
+            File file = new File("/sdcard/camera1.h264");
             mRaf = new RandomAccessFile(file, "rw");
         } catch (Exception e) {
             Log.w(TAG, e.toString());

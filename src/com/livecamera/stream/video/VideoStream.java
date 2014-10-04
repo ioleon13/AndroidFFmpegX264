@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.concurrent.Semaphore;
 
 import android.annotation.SuppressLint;
+import android.graphics.ImageFormat;
 import android.hardware.Camera;
 import android.hardware.Camera.CameraInfo;
 import android.hardware.Camera.Parameters;
@@ -39,7 +40,7 @@ public class VideoStream extends MediaStream {
 	protected VideoParam mParam = mRequestedParam.clone();
 	protected int mMaxFps = 0;
 	
-	protected int mImageFormat;
+	protected int mImageFormat = ImageFormat.NV21;
 	
 	/**
 	 * set the camera: facing back or facing front
@@ -334,11 +335,14 @@ public class VideoStream extends MediaStream {
         p.setPreviewSize(mParam.width, mParam.height);
         p.setPreviewFpsRange(max[0], max[1]);
         
+        Log.e(TAG, "preview size: " + mParam.width + "x" + mParam.height);
+        
         try {
             mCamera.setParameters(p);
             mCamera.setDisplayOrientation(mOrientation);
-            //mCamera.startPreview();
-            //mPreviewStarted = true;
+            Log.e(TAG, "start preview");
+            mCamera.startPreview();
+            mPreviewStarted = true;
         } catch (RuntimeException e) {
             destroyCamera();
             throw e;

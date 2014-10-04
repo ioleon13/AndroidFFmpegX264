@@ -4,5 +4,6 @@
     <string name="app_name">AndroidFFmpegX264</string>
     <string name="action_settings">Settings</string>
     <string name="hello_world">Hello world!</string>
+    <string name="live_start_stop">start or stop live the camera</string>
 
 </resources>
