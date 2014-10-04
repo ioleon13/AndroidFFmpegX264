@@ -127,6 +127,7 @@ public class VideoStream extends MediaStream {
                 @Override
                 public void surfaceChanged(SurfaceHolder arg0, int arg1, int arg2, int arg3) {
                     Log.d(TAG, "surface changed!");
+                    startPreview();
                 }
             };
             
@@ -172,8 +173,15 @@ public class VideoStream extends MediaStream {
 	 * stop preview
 	 */
 	public synchronized void stopPreview() {
-	    mPreviewRunning = false;
-	    stop();
+	    if (mPreviewRunning) {
+	        mCamera.stopPreview();
+	        mCamera.release();
+	        mCamera = null;
+            mCameraLooper.quit();
+	        mPreviewRunning = false;
+        }
+	    
+	    //stop();
 	}
 	
 	
