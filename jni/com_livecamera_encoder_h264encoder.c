@@ -30,6 +30,13 @@ typedef struct {
 	x264_nal_t *nal;
 } Encoder;
 
+#define LOGTAG "LiveCamera_encoder"
+#define ALOGV(...) __android_log_print(ANDROID_LOG_VERBOSE, LOGTAG, __VA_ARGS__)
+#define ALOGD(...) __android_log_print(ANDROID_LOG_DEBUG  , LOGTAG, __VA_ARGS__)
+#define ALOGI(...) __android_log_print(ANDROID_LOG_INFO   , LOGTAG, __VA_ARGS__)
+#define ALOGW(...) __android_log_print(ANDROID_LOG_WARN   , LOGTAG, __VA_ARGS__)
+#define ALOGE(...) __android_log_print(ANDROID_LOG_ERROR  , LOGTAG, __VA_ARGS__)
+
 /* Begin encode
  * file located at:
  *
@@ -68,22 +75,31 @@ jint
 Java_com_livecamera_encoder_h264encoder_CompressEnd( JNIEnv* env, jobject thiz, jlong handle)
 {
 	Encoder *en = (Encoder*)handle;
+	ALOGE("begin free!");
 	if (en->picture) {
+		ALOGE("begin free picture");
 		x264_picture_clean(en->picture);
 		free(en->picture);
 		en->picture = 0;
 	}
+
+	ALOGE("after free picture");
 
 	if (en->param) {
 		free(en->param);
 		en->param = 0;
 	}
 
+	ALOGE("after free param");
+
 	if (en->handle) {
 		x264_encoder_close(en->handle);
 	}
+	ALOGE("after close encoder");
 
 	free(en);
+
+	ALOGE("after free encoder");
 
 	return 0;
 }

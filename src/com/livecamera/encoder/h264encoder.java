@@ -56,13 +56,18 @@ public class h264encoder {
     }
     
 	public void stop() {
-		
+		if (mCamera != null) {
+            mCamera.setPreviewCallback(null);
+        }
 	}
 	
 	public void release() {
+	    Log.e(TAG, "release the encoder");
 	    CompressEnd(mEncoder);
+	    
         if (mRaf != null) {
             try {
+                Log.e(TAG, "close the file");
                 mRaf.close();
             } catch (Exception e) {
                 Log.w(TAG, e.toString());

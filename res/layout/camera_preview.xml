@@ -3,12 +3,6 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent" >
     
-    <SurfaceView 
-        android:id="@+id/camera_view"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:gravity="center"/>
-    
     <ImageButton 
         android:id="@+id/live_start_stop"
         android:contentDescription="@string/live_start_stop"
@@ -18,5 +12,12 @@
         android:layout_centerHorizontal="true"
         android:src="@drawable/ic_control_play"
         android:background="@drawable/bg_control"/>
+    
+    <SurfaceView 
+        android:id="@+id/camera_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:layout_above="@id/live_start_stop"/>
 
 </RelativeLayout>

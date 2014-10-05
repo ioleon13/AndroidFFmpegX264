@@ -115,6 +115,7 @@ public class VideoStream extends MediaStream {
                 @Override
                 public void surfaceDestroyed(SurfaceHolder arg0) {
                     mSurfaceReady = false;
+                    stop();
                     stopPreview();
                     Log.d(TAG, "Surface destroyed!");
                 }
@@ -212,7 +213,7 @@ public class VideoStream extends MediaStream {
             }
             super.stop();
             
-            if (!mPreviewRunning) {
+            /*if (!mPreviewRunning) {
                 destroyCamera();
             } else {
                 try {
@@ -220,7 +221,7 @@ public class VideoStream extends MediaStream {
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
-            }
+            }*/
         }
     }
 	
@@ -367,6 +368,9 @@ public class VideoStream extends MediaStream {
         //reopen if need
         destroyCamera();
         createCamera();
+        if(!mPreviewRunning) {
+            startPreview();
+        }
         
         try {
             mH264Encoder = new h264encoder();

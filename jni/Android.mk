@@ -26,7 +26,7 @@ libavutil/libavutil.a \
 libpostproc/libpostproc.a)
 
 LOCAL_CFLAGS += -g -Iffmpeg -Wno-deprecated-declarations
-LOCAL_LDLIBS += -lz $(FFMPEG_LIBS) x264/android_x264/lib/libx264.a
+LOCAL_LDLIBS += -llog -lz $(FFMPEG_LIBS) x264/android_x264/lib/libx264.a
 LOCAL_SRC_FILES := com_livecamera_encoder_h264encoder.c
 
 include $(BUILD_SHARED_LIBRARY)

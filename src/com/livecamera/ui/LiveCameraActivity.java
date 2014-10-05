@@ -11,6 +11,7 @@ import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.hardware.Camera.CameraInfo;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.SurfaceView;
 import android.view.View;
@@ -37,6 +38,7 @@ public class LiveCameraActivity extends Activity implements OnClickListener {
         
         mSurfaceView = (SurfaceView)findViewById(R.id.camera_view);
         mStartStopView = (ImageButton)findViewById(R.id.live_start_stop);
+        mStartStopView.setOnClickListener(this);
         
         //use the back camera
         mVideoStream = new VideoStream(CameraInfo.CAMERA_FACING_BACK);
@@ -52,13 +54,16 @@ public class LiveCameraActivity extends Activity implements OnClickListener {
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        // TODO Auto-generated method stub
+        if (keyCode == KeyEvent.KEYCODE_MENU) {
+            return false;
+        }
         return super.onKeyDown(keyCode, event);
     }
 
     @Override
     public void onClick(View v) {
         if (v == mStartStopView) {
+            Log.e(TAG, "click start or stop");
             long currentTime = System.currentTimeMillis();
             if (currentTime - mClickTime < 700) return;
             mClickTime = currentTime;
