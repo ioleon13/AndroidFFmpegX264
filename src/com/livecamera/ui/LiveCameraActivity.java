@@ -63,16 +63,18 @@ public class LiveCameraActivity extends Activity implements OnClickListener {
     @Override
     public void onClick(View v) {
         if (v == mStartStopView) {
-            Log.e(TAG, "click start or stop");
+            
             long currentTime = System.currentTimeMillis();
             if (currentTime - mClickTime < 700) return;
             mClickTime = currentTime;
             
             if (mStarted) {
+                Log.e(TAG, "click to stop");
                 mVideoStream.stop();
                 mStartStopView.setImageResource(R.drawable.ic_control_play);
                 mStarted = false;
             } else {
+                Log.e(TAG, "click to start");
                 try {
                     mVideoStream.start();
                     mStartStopView.setImageResource(R.drawable.ic_control_stop);

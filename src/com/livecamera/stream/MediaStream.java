@@ -56,6 +56,7 @@ public class MediaStream {
     public synchronized void stop() {
 	    if (mStreaming) {
             try {
+                mStreaming = false;
                 if (mMode == MODE_MEDIARECORDER_API) {
                     mMediaRecorder.stop();
                     mMediaRecorder.release();
@@ -70,7 +71,7 @@ public class MediaStream {
                     mH264Encoder = null;
                 }
             } catch (Exception e) {
-                // TODO: handle exception
+                e.printStackTrace();
             }
         }
 	}

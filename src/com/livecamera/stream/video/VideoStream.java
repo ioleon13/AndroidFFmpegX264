@@ -30,7 +30,7 @@ public class VideoStream extends MediaStream {
 	protected Thread mCameraThread;
 	protected Looper mCameraLooper;
 	
-	protected boolean mPreviewRunning = true;
+	protected boolean mPreviewRunning = false;
 	protected boolean mPreviewStarted = false;
 	
 	protected boolean mFlashEnabled = false;
@@ -368,6 +368,8 @@ public class VideoStream extends MediaStream {
         //reopen if need
         destroyCamera();
         createCamera();
+        
+        Log.d(TAG, mPreviewRunning ? "camera was previewing" : "camera was not previewing");
         if(!mPreviewRunning) {
             startPreview();
         }
