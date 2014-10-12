@@ -2,7 +2,13 @@ package com.livecamera.encoder;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.SocketException;
+import java.net.UnknownHostException;
 
 import com.livecamera.stream.video.VideoParam;
 
@@ -25,6 +31,25 @@ public class h264encoder {
     private byte[] mH264Buff = null;
     private RandomAccessFile mRaf = null;
     
+    //network
+    DatagramSocket mSocket;
+    InetAddress mAddress;
+    
+    public h264encoder() {
+        super();
+        
+        //network
+        try {
+            mSocket = new DatagramSocket();
+            mAddress = InetAddress.getByName("192.168.2.104");
+        } catch (SocketException e) {
+            e.printStackTrace();
+        } catch (UnknownHostException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+    }
+
     public void setCamera(Camera c) {
         mCamera = c;
     }
@@ -38,12 +63,12 @@ public class h264encoder {
         mH264Buff = new byte[mVideoParam.width * mVideoParam.height * 8];
         
         //save file first for testing
-        try {
+        /*try {
             File file = new File("/sdcard/camera1.h264");
             mRaf = new RandomAccessFile(file, "rw");
         } catch (Exception e) {
             Log.w(TAG, e.toString());
-        }
+        }*/
         
         if (mCamera != null) {
             mCamera.setPreviewCallback(new Camera.PreviewCallback() {
@@ -52,13 +77,18 @@ public class h264encoder {
                 public void onPreviewFrame(byte[] data, Camera camera) {
                     int result = CompressBuffer(mEncoder, 0, data, data.length, mH264Buff);
                     
+                    //Log.e(TAG, "start to send h264 data");
                     try {
-                        if (result > 0) {
-                            mRaf.write(mH264Buff, 0, result);
+                        if (result > 0 && mSocket != null && mAddress != null) {
+                            DatagramPacket packet = new DatagramPacket(mH264Buff, result,
+                                    mAddress, 5000);
+                            mSocket.send(packet);
                         }
-                    } catch (Exception e) {
+                    } catch (IOException e) {
                         Log.w(TAG, e.toString());
                     }
+                    
+                    //Log.e(TAG, "send success!");
                 }
             });
         }
