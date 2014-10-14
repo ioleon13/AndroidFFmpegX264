@@ -13,6 +13,7 @@ import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 
+import com.livecamera.encoder.MediaCodecEncoder;
 import com.livecamera.encoder.h264encoder;
 import com.livecamera.stream.MediaStream;
 
@@ -196,7 +197,9 @@ public class VideoStream extends MediaStream {
 	    
 	    //start encode
 	    if (mMode == MODE_FFMPEGX264_API) {
-            encodecWithX264();
+            encodeWithX264();
+        } else if (mMode == MODE_MEDIACODEC_API) {
+            encodeWithMediaCodec();
         }
 	    
 	    Log.i(TAG, "encode params: FPS: " + mParam.framerate +
@@ -208,9 +211,9 @@ public class VideoStream extends MediaStream {
      */
     public synchronized void stop() {
         if (mCamera != null) {
-            if (mMode == MODE_MEDIACODEC_API) {
+            /*if (mMode == MODE_MEDIACODEC_API) {
                 mCamera.setPreviewCallbackWithBuffer(null);
-            }
+            }*/
             super.stop();
             
             /*if (!mPreviewRunning) {
@@ -362,7 +365,7 @@ public class VideoStream extends MediaStream {
 	/**
 	 * encode with ffmpeg-x264
 	 */
-	protected void encodecWithX264() throws RuntimeException {
+	protected void encodeWithX264() throws RuntimeException {
         Log.d(TAG, "Video encoded with ffmpeg x264");
         
         //reopen if need
@@ -389,6 +392,27 @@ public class VideoStream extends MediaStream {
 	/**
 	 * encode with mediacodec
 	 */
+	protected void encodeWithMediaCodec() {
+	    Log.d(TAG, "Video encoded with MediaCodec API");
+	    
+	    //reopen if need
+        destroyCamera();
+        createCamera();
+        
+        Log.d(TAG, mPreviewRunning ? "camera was previewing" : "camera was not previewing");
+        if(!mPreviewRunning) {
+            startPreview();
+        }
+        
+        try {
+            mMediaCodecEncoder = new MediaCodecEncoder();
+            mMediaCodecEncoder.setVideoParam(mParam);
+            mMediaCodecEncoder.setCamera(mCamera);
+            mMediaCodecEncoder.start();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 	
 	/**
 	 * encode with mediarecorder

@@ -32,8 +32,8 @@ public class h264encoder {
     private RandomAccessFile mRaf = null;
     
     //network
-    DatagramSocket mSocket;
-    InetAddress mAddress;
+    private DatagramSocket mSocket;
+    private InetAddress mAddress;
     
     public h264encoder() {
         super();

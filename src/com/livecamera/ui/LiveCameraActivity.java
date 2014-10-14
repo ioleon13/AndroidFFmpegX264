@@ -4,6 +4,7 @@ package com.livecamera.ui;
 import java.io.IOException;
 
 import com.example.androidffmpegx264.R;
+import com.livecamera.stream.MediaStream;
 import com.livecamera.stream.video.VideoParam;
 import com.livecamera.stream.video.VideoStream;
 
@@ -42,6 +43,7 @@ public class LiveCameraActivity extends Activity implements OnClickListener {
         
         //use the back camera
         mVideoStream = new VideoStream(CameraInfo.CAMERA_FACING_BACK);
+        mVideoStream.setEncodingMethod(MediaStream.MODE_MEDIACODEC_API);
         mVideoStream.setSurfaceView(mSurfaceView);
         mVideoStream.setPreviewOrientation(90);
         
