@@ -66,7 +66,7 @@ public class MediaCodecEncoder {
 	@SuppressLint("NewApi")
 	public void start() {
 		//computes the average framerate of the camera
-		measureFramerate();
+		//measureFramerate();
 		
 		mYUV420 = new byte[mVideoParam.width*mVideoParam.height*3/2];
 		mEncodedBuf = new byte[mVideoParam.width*mVideoParam.height*3/2];
@@ -84,6 +84,10 @@ public class MediaCodecEncoder {
 				mVideoParam.height);
 		mediaFormat.setInteger(MediaFormat.KEY_BIT_RATE, mVideoParam.bitrate);
 		mediaFormat.setInteger(MediaFormat.KEY_FRAME_RATE, mVideoParam.framerate);
+		
+		//if you use COLOR_FormatYUV420SemiPlanar, the input data should not to convert, the camera
+		//preview format was set NV21 defaultly.
+		//but if you set color format COLOR_FormatYUV420Planar here, you should convert the input data
 		mediaFormat.setInteger(MediaFormat.KEY_COLOR_FORMAT,
 				MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar);
 		mediaFormat.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1);
@@ -173,9 +177,26 @@ public class MediaCodecEncoder {
 	 * The format of camera video data was yuv420sp, should convert it to yuv420p 
 	 */
 	private void convertYUV420sptoYUV420p(byte[] YUV420sp, byte[] YUV420p, int width, int height) {
-		System.arraycopy(YUV420sp, 0, YUV420p, 0, width*height);
-		System.arraycopy(YUV420sp, width*height + width*height/4, YUV420p, width*height, width*height/4);
-		System.arraycopy(YUV420sp, width*height, YUV420p, width*height + width*height/4, width*height/4);
+		//System.arraycopy(YUV420sp, 0, YUV420p, 0, YUV420sp.length);
+		
+		final int frameSize = width*height;
+		
+		//Y
+		System.arraycopy(YUV420sp, 0, YUV420p, 0, frameSize);
+		
+		//U
+		int pIndex = width*height;
+		for (int i = frameSize+1; i < YUV420p.length; i+=2) {
+			YUV420p[pIndex++] = YUV420sp[i];
+		}
+		
+		//V
+		for (int i = frameSize; i < YUV420p.length; i+=2) {
+			YUV420p[pIndex++] = YUV420sp[i];
+		}
+		
+		//System.arraycopy(YUV420sp, frameSize + qFrameSize, YUV420p, frameSize, qFrameSize);
+		//System.arraycopy(YUV420sp, frameSize, YUV420p, frameSize + qFrameSize, qFrameSize);
 	}
 	
 	
