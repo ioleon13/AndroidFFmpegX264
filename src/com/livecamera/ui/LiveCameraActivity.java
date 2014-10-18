@@ -26,7 +26,7 @@ public class LiveCameraActivity extends Activity implements OnClickListener {
     private ImageButton mStartStopView;
     
     private VideoStream mVideoStream;
-    private VideoParam mVideoParam = new VideoParam(352, 288, 25, 800000);
+    private VideoParam mVideoParam = new VideoParam(320, 240, 15, 1000000);
     
     private boolean mStarted = false;
     private long mClickTime = 0;

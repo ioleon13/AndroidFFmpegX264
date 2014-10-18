@@ -18,11 +18,15 @@ import android.annotation.SuppressLint;
 import android.hardware.Camera;
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
+import android.media.MediaCodecList;
 import android.media.MediaFormat;
 import android.util.Log;
 
 public class MediaCodecEncoder {
 	private String TAG = "MediaCodecEncoder";
+	
+	private static final String MIME_TYPE = "video/avc";
+	private static final int IFRAME_INTERVAL = 10;          // 10 seconds between I-frames
 	
 	private Camera mCamera;
 	
@@ -39,6 +43,8 @@ public class MediaCodecEncoder {
 	//network
     private DatagramSocket mSocket;
     private InetAddress mAddress;
+    
+    private int mColorFormat = 0;
 	
 	public MediaCodecEncoder() {
         super();
@@ -79,8 +85,20 @@ public class MediaCodecEncoder {
             Log.w(TAG, e.toString());
         }*/
 		
-		mMediaCodec = MediaCodec.createEncoderByType("video/avc");
-		MediaFormat mediaFormat = MediaFormat.createVideoFormat("video/avc", mVideoParam.width,
+		MediaCodecInfo codecInfo = selectCodec(MIME_TYPE);
+        if (codecInfo == null) {
+            // Don't fail CTS if they don't have an AVC codec (not here, anyway).
+            Log.e(TAG, "Unable to find an appropriate codec for " + MIME_TYPE);
+            return;
+        }
+        Log.d(TAG, "found codec: " + codecInfo.getName());
+
+        mColorFormat = selectColorFormat(codecInfo, MIME_TYPE);
+        Log.d(TAG, "found colorFormat: " + mColorFormat);
+		
+        mMediaCodec = MediaCodec.createByCodecName(codecInfo.getName());
+
+		MediaFormat mediaFormat = MediaFormat.createVideoFormat(MIME_TYPE, mVideoParam.width,
 				mVideoParam.height);
 		mediaFormat.setInteger(MediaFormat.KEY_BIT_RATE, mVideoParam.bitrate);
 		mediaFormat.setInteger(MediaFormat.KEY_FRAME_RATE, mVideoParam.framerate);
@@ -88,9 +106,8 @@ public class MediaCodecEncoder {
 		//if you use COLOR_FormatYUV420SemiPlanar, the input data should not to convert, the camera
 		//preview format was set NV21 defaultly.
 		//but if you set color format COLOR_FormatYUV420Planar here, you should convert the input data
-		mediaFormat.setInteger(MediaFormat.KEY_COLOR_FORMAT,
-				MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar);
-		mediaFormat.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1);
+		mediaFormat.setInteger(MediaFormat.KEY_COLOR_FORMAT, mColorFormat);
+		mediaFormat.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, IFRAME_INTERVAL);
 		mMediaCodec.configure(mediaFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
 		mMediaCodec.start();
 		
@@ -105,6 +122,7 @@ public class MediaCodecEncoder {
                         DatagramPacket packet = new DatagramPacket(mEncodedBuf, result,
                                 mAddress, 5000);
                         mSocket.send(packet);
+                        //mRaf.write(mEncodedBuf, 0, result);
                     }
                 } catch (IOException e) {
                     Log.w(TAG, e.toString());
@@ -174,26 +192,32 @@ public class MediaCodecEncoder {
 	
 	
 	/**
-	 * The format of camera video data was yuv420sp, should convert it to yuv420p 
+	 * The format of camera video data was NV21, if the color format of MediaCodec
+	 * was COLOR_FormatYUV420Planar should be converted 
 	 */
-	private void convertYUV420sptoYUV420p(byte[] YUV420sp, byte[] YUV420p, int width, int height) {
-		//System.arraycopy(YUV420sp, 0, YUV420p, 0, YUV420sp.length);
+	private void convertColorFormat(byte[] YUV420sp, byte[] YUV420p, int width, int height) {
+	    boolean semiPlanar = isSemiPlanarYUV(mColorFormat);
+	    
+	    if (semiPlanar) { //if the color format was semi planar, do not convert, copy directly
+	        System.arraycopy(YUV420sp, 0, YUV420p, 0, YUV420sp.length);
+        } else {
+            final int frameSize = width*height;
+            
+            //Y
+            System.arraycopy(YUV420sp, 0, YUV420p, 0, frameSize);
+            
+            //U
+            int pIndex = width*height;
+            for (int i = frameSize+1; i < YUV420p.length; i+=2) {
+                YUV420p[pIndex++] = YUV420sp[i];
+            }
+            
+            //V
+            for (int i = frameSize; i < YUV420p.length; i+=2) {
+                YUV420p[pIndex++] = YUV420sp[i];
+            }
+        }
 		
-		final int frameSize = width*height;
-		
-		//Y
-		System.arraycopy(YUV420sp, 0, YUV420p, 0, frameSize);
-		
-		//U
-		int pIndex = width*height;
-		for (int i = frameSize+1; i < YUV420p.length; i+=2) {
-			YUV420p[pIndex++] = YUV420sp[i];
-		}
-		
-		//V
-		for (int i = frameSize; i < YUV420p.length; i+=2) {
-			YUV420p[pIndex++] = YUV420sp[i];
-		}
 		
 		//System.arraycopy(YUV420sp, frameSize + qFrameSize, YUV420p, frameSize, qFrameSize);
 		//System.arraycopy(YUV420sp, frameSize, YUV420p, frameSize + qFrameSize, qFrameSize);
@@ -207,8 +231,8 @@ public class MediaCodecEncoder {
 	private int encodeBuffer(byte[] input, byte[] output) {
 		int pos = 0;
 		
-		//convert yuv420sp to yuv420p
-		convertYUV420sptoYUV420p(input, mYUV420, mVideoParam.width, mVideoParam.height);
+		//the camera preview format was nv21, convert it to yuv420sp or yuv420p
+		convertColorFormat(input, mYUV420, mVideoParam.width, mVideoParam.height);
 		
 		try {
 			ByteBuffer[] inputBuffers = mMediaCodec.getInputBuffers();
@@ -220,10 +244,12 @@ public class MediaCodecEncoder {
 				inputBuffer.clear();
 				inputBuffer.put(mYUV420);
 				mMediaCodec.queueInputBuffer(inputBufferIndex, 0, mYUV420.length, 0, 0);
+				Log.e(TAG, "queue input buffer len = " + mYUV420.length);
 			}
 			
 			MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
 			int outputBufferIndex = mMediaCodec.dequeueOutputBuffer(bufferInfo, 0);
+			Log.e(TAG, "output buffer index = " + outputBufferIndex);
 			while (outputBufferIndex >= 0) {
 				ByteBuffer outputBuffer = outputBuffers[outputBufferIndex];
 				byte[] outData = new byte[bufferInfo.size];
@@ -259,4 +285,83 @@ public class MediaCodecEncoder {
 		
 		return pos;
 	}
+	
+	
+	/**
+     * Returns the first codec capable of encoding the specified MIME type, or null if no
+     * match was found.
+     */
+    @SuppressLint("NewApi")
+    private MediaCodecInfo selectCodec(String mimeType) {
+        int numCodecs = MediaCodecList.getCodecCount();
+        for (int i = 0; i < numCodecs; i++) {
+            MediaCodecInfo codecInfo = MediaCodecList.getCodecInfoAt(i);
+
+            if (!codecInfo.isEncoder()) {
+                continue;
+            }
+
+            String[] types = codecInfo.getSupportedTypes();
+            for (int j = 0; j < types.length; j++) {
+                if (types[j].equalsIgnoreCase(mimeType)) {
+                    return codecInfo;
+                }
+            }
+        }
+        return null;
+    }
+    
+    /**
+     * Returns a color format that is supported by the codec and by this test code.  If no
+     * match is found, this throws a test failure -- the set of formats known to the test
+     * should be expanded for new platforms.
+     */
+    @SuppressLint("NewApi")
+    private int selectColorFormat(MediaCodecInfo codecInfo, String mimeType) {
+        MediaCodecInfo.CodecCapabilities capabilities = codecInfo.getCapabilitiesForType(mimeType);
+        for (int i = 0; i < capabilities.colorFormats.length; i++) {
+            int colorFormat = capabilities.colorFormats[i];
+            if (isRecognizedFormat(colorFormat)) {
+                return colorFormat;
+            }
+        }
+        Log.e(TAG, "couldn't find a good color format for " + codecInfo.getName() + " / " + mimeType);
+        return 0;   // not reached
+    }
+    
+    /**
+     * Returns true if this is a color format that this test code understands (i.e. we know how
+     * to read and generate frames in this format).
+     */
+    private boolean isRecognizedFormat(int colorFormat) {
+        switch (colorFormat) {
+            // these are the formats we know how to handle for this test
+            case MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar:
+            case MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420PackedPlanar:
+            case MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar:
+            case MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420PackedSemiPlanar:
+            case MediaCodecInfo.CodecCapabilities.COLOR_TI_FormatYUV420PackedSemiPlanar:
+                return true;
+            default:
+                return false;
+        }
+    }
+    
+    /**
+     * Returns true if the specified color format is semi-planar YUV.  Throws an exception
+     * if the color format is not recognized (e.g. not YUV).
+     */
+    private boolean isSemiPlanarYUV(int colorFormat) {
+        switch (colorFormat) {
+            case MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar:
+            case MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420PackedPlanar:
+                return false;
+            case MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar:
+            case MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420PackedSemiPlanar:
+            case MediaCodecInfo.CodecCapabilities.COLOR_TI_FormatYUV420PackedSemiPlanar:
+                return true;
+            default:
+                throw new RuntimeException("unknown format " + colorFormat);
+        }
+    }
 }
