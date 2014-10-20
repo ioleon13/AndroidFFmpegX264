@@ -45,6 +45,8 @@ public class MediaCodecEncoder {
     private InetAddress mAddress;
     
     private int mColorFormat = 0;
+    
+    private boolean mSemiPlanar = false;
 	
 	public MediaCodecEncoder() {
         super();
@@ -78,12 +80,12 @@ public class MediaCodecEncoder {
 		mEncodedBuf = new byte[mVideoParam.width*mVideoParam.height*3/2];
 		
 		//save file first for testing
-        /*try {
+        try {
             File file = new File("/sdcard/camera1.h264");
             mRaf = new RandomAccessFile(file, "rw");
         } catch (Exception e) {
             Log.w(TAG, e.toString());
-        }*/
+        }
 		
 		MediaCodecInfo codecInfo = selectCodec(MIME_TYPE);
         if (codecInfo == null) {
@@ -95,6 +97,8 @@ public class MediaCodecEncoder {
 
         mColorFormat = selectColorFormat(codecInfo, MIME_TYPE);
         Log.d(TAG, "found colorFormat: " + mColorFormat);
+        
+        mSemiPlanar = isSemiPlanarYUV(mColorFormat);
 		
         mMediaCodec = MediaCodec.createByCodecName(codecInfo.getName());
 
@@ -119,10 +123,10 @@ public class MediaCodecEncoder {
 				
 				try {
                     if (result > 0 && mSocket != null && mAddress != null) {
-                        DatagramPacket packet = new DatagramPacket(mEncodedBuf, result,
+                        /*DatagramPacket packet = new DatagramPacket(mEncodedBuf, result,
                                 mAddress, 5000);
-                        mSocket.send(packet);
-                        //mRaf.write(mEncodedBuf, 0, result);
+                        mSocket.send(packet);*/
+                        mRaf.write(mEncodedBuf, 0, result);
                     }
                 } catch (IOException e) {
                     Log.w(TAG, e.toString());
@@ -195,10 +199,8 @@ public class MediaCodecEncoder {
 	 * The format of camera video data was NV21, if the color format of MediaCodec
 	 * was COLOR_FormatYUV420Planar should be converted 
 	 */
-	private void convertColorFormat(byte[] YUV420sp, byte[] YUV420p, int width, int height) {
-	    boolean semiPlanar = isSemiPlanarYUV(mColorFormat);
-	    
-	    if (semiPlanar) { //if the color format was semi planar, do not convert, copy directly
+	private void convertColorFormat(byte[] YUV420sp, byte[] YUV420p, int width, int height) {	    
+	    if (mSemiPlanar) { //if the color format was semi planar, do not convert, copy directly
 	        System.arraycopy(YUV420sp, 0, YUV420p, 0, YUV420sp.length);
         } else {
             final int frameSize = width*height;
@@ -243,13 +245,12 @@ public class MediaCodecEncoder {
 				ByteBuffer inputBuffer = inputBuffers[inputBufferIndex];
 				inputBuffer.clear();
 				inputBuffer.put(mYUV420);
-				mMediaCodec.queueInputBuffer(inputBufferIndex, 0, mYUV420.length, 0, 0);
-				Log.e(TAG, "queue input buffer len = " + mYUV420.length);
+				mMediaCodec.queueInputBuffer(inputBufferIndex, 0, mYUV420.length,
+				        System.nanoTime()/1000, 0);
 			}
 			
 			MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
 			int outputBufferIndex = mMediaCodec.dequeueOutputBuffer(bufferInfo, 0);
-			Log.e(TAG, "output buffer index = " + outputBufferIndex);
 			while (outputBufferIndex >= 0) {
 				ByteBuffer outputBuffer = outputBuffers[outputBufferIndex];
 				byte[] outData = new byte[bufferInfo.size];
