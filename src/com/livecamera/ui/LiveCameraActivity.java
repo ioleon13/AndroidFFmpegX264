@@ -2,6 +2,9 @@ package com.livecamera.ui;
 
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.Arrays;
 
 import com.example.androidffmpegx264.R;
 import com.livecamera.stream.MediaStream;
@@ -50,6 +53,17 @@ public class LiveCameraActivity extends Activity implements OnClickListener {
         //TODO, load the video param from settings
         mVideoStream.setVideoParam(mVideoParam);
         
+        //test
+        /*byte[] cmdNum = new byte[2];
+        ByteBuffer buff = ByteBuffer.wrap(cmdNum);
+        buff.order(ByteOrder.LITTLE_ENDIAN);
+        buff.putShort((short) 1);
+        
+        Log.e(TAG, "cmdNum: " + Arrays.toString(cmdNum));
+        byte[] len = new byte[4];
+        buff = ByteBuffer.wrap(len);
+        buff.putInt((int)(10 + 1 + 2));
+        Log.e(TAG, "len: " + Arrays.toString(len));*/
         //start preview
         //mVideoStream.startPreview();
     }
