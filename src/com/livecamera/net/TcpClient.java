@@ -37,6 +37,8 @@ public class TcpClient {
     
     private boolean mStreamingAllowed = false;
     
+    private ByteBuffer mStreamBuff;
+    
     enum RECEIVESTATE {
         WAITING,
         RECEIVING,
@@ -74,6 +76,7 @@ public class TcpClient {
      * @param data
      */
     public void sendStreamData(byte[] data) {
+        //TODO: it should be inserted into a buffer
     	if (mStreamClient != null) {
 			mStreamClient.sendCmd5(data);
 		}
@@ -133,10 +136,17 @@ public class TcpClient {
                     break;
                     
                 case MessageTypes.STREAMING_ALLOWED:
-                    mStreamingAllowed = true;
+                    int access = msg.arg1;
+                    if (access == 0) {
+                        mStreamingAllowed = true;
+                    } else {
+                        mStreamingAllowed = false;
+                    }
                     break;
                     
                 case MessageTypes.HEARTBEAT_RECEIVED:
+                    String HeartBeatStr = (String)msg.obj;
+                    //handle heartbeat
                     break;
 
                 default:
@@ -369,6 +379,8 @@ public class TcpClient {
 				}
             	
                 read();
+                
+                //TODO:if allowed to send stream, send it from buffer
                 try {
                     Thread.sleep(100);
                 } catch (InterruptedException e) {
@@ -421,11 +433,11 @@ public class TcpClient {
             
             switch (cmdNum) {
 			case 4:
-				ret = handleRecvCmd4(buff);
+				ret = handleRecvCmd4(buff, size);
 				break;
 				
 			case 6:
-				ret = handleRecvCmd6(buff);
+				ret = handleRecvCmd6(buff, size);
 				break;
 
 			default:
@@ -447,11 +459,24 @@ public class TcpClient {
          * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
          * @return 0-success 1-received an error data or unknown cmd
          */
-        private int handleRecvCmd4(ByteBuffer buff) {
-        	int ret = 0;
+        private int handleRecvCmd4(ByteBuffer buff, int size) {
         	int cmdLen = buff.getInt(3);
+        	if (cmdLen != size) {
+                return 1;
+            }
         	
-        	return ret;
+        	byte access = buff.get(7);
+        	
+        	//send message
+        	Message message = new Message();
+        	message.what = MessageTypes.STREAMING_ALLOWED;
+        	message.arg1 = access;
+        	
+        	if (mHandler != null) {
+        	    mHandler.sendMessage(message);
+            }
+        	
+        	return 0;
         }
         
         
@@ -459,14 +484,35 @@ public class TcpClient {
          * Heartbeat info
          * @param buff
          * Cmd6:
-         * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-         * |Prefix=0x82(1Byte) |  Num=6(2Byte) |  Len(4Byte)   |         String        |
-         * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+         * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+         * |Prefix=0x82(1Byte) |  Num=6(2Byte) |  Len(4Byte)   |    string   |
+         * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
          * @return 0-success 1-received an error data or unknown cmd
          */
-        private int handleRecvCmd6(ByteBuffer buff) {
-        	int ret = 0;
-        	return ret;
+        private int handleRecvCmd6(ByteBuffer buff, int size) {
+        	int cmdLen = buff.getInt(3);
+        	if (cmdLen != size) {
+                return 1;
+            }
+        	
+        	int strLen = buff.getInt(7);
+            
+            if (strLen == 0) {
+                return 1;
+            }
+            
+            byte[] strInfo = new byte[strLen];
+            buff.get(strInfo, 11, strLen);
+            String parsedStr = new String(strInfo, 0, strLen);
+        	
+        	//send message
+        	Message message = new Message();
+        	message.what = MessageTypes.HEARTBEAT_RECEIVED;
+        	message.obj = parsedStr;
+        	if (mHandler != null) {
+                mHandler.sendMessage(message);
+            }
+        	return 0;
         }
         
         
@@ -514,7 +560,30 @@ public class TcpClient {
          * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
          */
         public void sendCmd5(byte[] data) {
-        	
+            byte[] prefix = {(byte) 0x82};
+            byte[] cmdNum = new byte[2];
+            ByteBuffer buff = ByteBuffer.wrap(cmdNum);
+            buff.order(ByteOrder.LITTLE_ENDIAN);
+            buff.putShort((short) 5);
+            byte[] len = new byte[4];
+            buff = ByteBuffer.wrap(len);
+            buff.order(ByteOrder.LITTLE_ENDIAN);
+            buff.putInt((int) 1);
+            byte[] clientType = {(byte)0x00};
+            
+            //send
+            try {
+                mOut.write(prefix, 0, prefix.length);
+                mOut.write(cmdNum, 0, cmdNum.length);
+                mOut.write(len, 0, len.length);
+                mOut.write(clientType, 0, clientType.length);
+                mOut.flush();
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to send cmd3, IOException caught");
+                e.printStackTrace();
+            }
+            
+            Log.i(TAG, "Successed to send Cmd3");
         }
         
         public synchronized void start() {
