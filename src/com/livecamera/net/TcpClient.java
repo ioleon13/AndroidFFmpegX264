@@ -75,10 +75,11 @@ public class TcpClient {
      * send encoded data to server
      * @param data
      */
-    public void sendStreamData(byte[] data) {
+    public void sendStreamData(byte[] data, int timestamp) {
         //TODO: it should be inserted into a buffer
+        //but now, send it immediately
     	if (mStreamClient != null) {
-			mStreamClient.sendCmd5(data);
+			mStreamClient.sendCmd5(data, timestamp);
 		}
     }
     
@@ -559,24 +560,38 @@ public class TcpClient {
          * |Prefix=0x82(1Byte) |  Num=5(2Byte) |  Len(4Byte)   |  Timestamp(4Byte) | PayloadLen(4Byte) |  H.264 payload  |
          * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
          */
-        public void sendCmd5(byte[] data) {
+        public void sendCmd5(byte[] data, int timestamp) {
             byte[] prefix = {(byte) 0x82};
+            
             byte[] cmdNum = new byte[2];
             ByteBuffer buff = ByteBuffer.wrap(cmdNum);
             buff.order(ByteOrder.LITTLE_ENDIAN);
             buff.putShort((short) 5);
+            
             byte[] len = new byte[4];
             buff = ByteBuffer.wrap(len);
             buff.order(ByteOrder.LITTLE_ENDIAN);
-            buff.putInt((int) 1);
-            byte[] clientType = {(byte)0x00};
+            buff.putInt((int) (4 + 4 + data.length));
+            
+            byte[] timeStamp = new byte[4];
+            buff = ByteBuffer.wrap(timeStamp);
+            buff.order(ByteOrder.LITTLE_ENDIAN);
+            buff.putInt(timestamp);
+            
+            byte[] payloadLen = new byte[4];
+            buff = ByteBuffer.wrap(payloadLen);
+            buff.order(ByteOrder.LITTLE_ENDIAN);
+            buff.putInt(data.length);
+            
             
             //send
             try {
                 mOut.write(prefix, 0, prefix.length);
                 mOut.write(cmdNum, 0, cmdNum.length);
                 mOut.write(len, 0, len.length);
-                mOut.write(clientType, 0, clientType.length);
+                mOut.write(timeStamp, 0, timeStamp.length);
+                mOut.write(payloadLen, 0, payloadLen.length);
+                mOut.write(data, 0, data.length);
                 mOut.flush();
             } catch (Exception e) {
                 Log.e(TAG, "Failed to send cmd3, IOException caught");

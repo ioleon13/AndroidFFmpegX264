@@ -12,6 +12,7 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
+import com.livecamera.net.TcpClient;
 import com.livecamera.stream.video.VideoParam;
 
 import android.annotation.SuppressLint;
@@ -41,8 +42,9 @@ public class MediaCodecEncoder {
 	private byte[] mPpsSpsInfo = null;
 	
 	//network
-    private DatagramSocket mSocket;
-    private InetAddress mAddress;
+    /*private DatagramSocket mSocket;
+    private InetAddress mAddress;*/
+	private TcpClient mTcpClient;
     
     private int mColorFormat = 0;
     
@@ -52,7 +54,7 @@ public class MediaCodecEncoder {
         super();
         
         //network
-        try {
+        /*try {
             mSocket = new DatagramSocket();
             mAddress = InetAddress.getByName("192.168.2.104");
         } catch (SocketException e) {
@@ -60,7 +62,8 @@ public class MediaCodecEncoder {
         } catch (UnknownHostException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
-        }
+        }*/
+        mTcpClient = new TcpClient("192.168.2.104", "http://127.0.0.1:8282");
     }
 
     public void setCamera(Camera camera) {
@@ -75,6 +78,9 @@ public class MediaCodecEncoder {
 	public void start() {
 		//computes the average framerate of the camera
 		//measureFramerate();
+	    
+	    //start tcp client
+	    mTcpClient.start();
 		
 		mYUV420 = new byte[mVideoParam.width*mVideoParam.height*3/2];
 		mEncodedBuf = new byte[mVideoParam.width*mVideoParam.height*3/2];
@@ -121,15 +127,15 @@ public class MediaCodecEncoder {
 			public void onPreviewFrame(byte[] data, Camera camera) {
 				int result = encodeBuffer(data, mEncodedBuf);
 				
-				try {
-                    if (result > 0 && mSocket != null && mAddress != null) {
-                        /*DatagramPacket packet = new DatagramPacket(mEncodedBuf, result,
-                                mAddress, 5000);
-                        mSocket.send(packet);*/
-                        mRaf.write(mEncodedBuf, 0, result);
-                    }
-                } catch (IOException e) {
-                    Log.w(TAG, e.toString());
+				if (result > 0 
+                        && mTcpClient != null 
+                        && mTcpClient.streamingAllowed()) {
+                    /*DatagramPacket packet = new DatagramPacket(mEncodedBuf, result,
+                            mAddress, 5000);
+                    mSocket.send(packet);*/
+                    //mRaf.write(mEncodedBuf, 0, result);
+                    mTcpClient.sendStreamData(mEncodedBuf,
+                            (int)System.nanoTime()/1000);
                 }
 			}
 		};
