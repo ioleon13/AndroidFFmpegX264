@@ -22,7 +22,7 @@ public class TcpClient {
     private OutputStream mOut;
     private InputStream mIn;
     private String mIPAdress = "127.0.0.1";
-    private int mServerPort1 = 8252;
+    private int mServerPort1 = 8282;
     private int mServerPort2;
     private int mTimeoutConn = 10000;
     private int mTimeoutRecv = 5000;
@@ -36,8 +36,6 @@ public class TcpClient {
     private StreamingClient mStreamClient;
     
     private boolean mStreamingAllowed = false;
-    
-    private ByteBuffer mStreamBuff;
     
     enum RECEIVESTATE {
         WAITING,
@@ -63,12 +61,21 @@ public class TcpClient {
         mStreamClient = new StreamingClient();
         mStreamClient.setHandler(mClientHandler);
         
-        boolean isConnected = mURLClient.connect();
-        if (isConnected) {
-        	mURLClient.start();
-            mURLClient.sendCmd1();
-        }
+        new Thread(runnable).start();
     }
+    
+    
+    Runnable runnable = new Runnable() {
+        
+        @Override
+        public void run() {
+            boolean isConnected = mURLClient.connect();
+            if (isConnected) {
+                mURLClient.start();
+                mURLClient.sendCmd1();
+            }
+        }
+    };
     
     
     /**
@@ -100,6 +107,7 @@ public class TcpClient {
         
         try {
             mSocket = new Socket();
+            Log.d(TAG, "connect to <" + mIPAdress + ":" + port + ">");
             mSocket.connect(new InetSocketAddress(mIPAdress, port),
                     mTimeoutConn);
             mOut = mSocket.getOutputStream();

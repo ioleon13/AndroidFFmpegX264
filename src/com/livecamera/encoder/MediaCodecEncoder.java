@@ -63,7 +63,7 @@ public class MediaCodecEncoder {
             // TODO Auto-generated catch block
             e.printStackTrace();
         }*/
-        mTcpClient = new TcpClient("192.168.2.104", "http://127.0.0.1:8282");
+        mTcpClient = new TcpClient("192.168.2.104", "http://192.168.2.104:8282");
     }
 
     public void setCamera(Camera camera) {
