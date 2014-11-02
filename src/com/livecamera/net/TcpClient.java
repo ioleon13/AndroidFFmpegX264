@@ -8,6 +8,7 @@ import java.net.Socket;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Arrays;
 
 import android.R.string;
 import android.annotation.SuppressLint;
@@ -202,7 +203,7 @@ public class TcpClient {
     public class UrlClient implements Runnable {
         private boolean mIsStop = false;
         private Handler mHandler = null;
-        private long mCmd1SendTime = 0l;
+        private long mCmd1SendTime = System.currentTimeMillis();
         
         public void setHandler(Handler handler) {
             this.mHandler = handler;
@@ -221,25 +222,52 @@ public class TcpClient {
          * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
          */
         public void sendCmd1() {
+            //mUrl = "";
+            int urlLen = mUrl.length();
+            byte[] toSend = new byte[1 + 2 + 4 + 1 + 2 + urlLen];
+            int offset = 0;
+            
             byte[] prefix = {(byte) 0x82};
+            System.arraycopy(prefix, 0, toSend, offset, prefix.length);
+            offset += prefix.length;
+            
             byte[] cmdNum = new byte[2];
             ByteBuffer buff = ByteBuffer.wrap(cmdNum);
             buff.order(ByteOrder.LITTLE_ENDIAN);
             buff.putShort((short) 1);
+            System.arraycopy(cmdNum, 0, toSend, offset, cmdNum.length);
+            offset += cmdNum.length;
+            
             byte[] len = new byte[4];
             buff = ByteBuffer.wrap(len);
             buff.order(ByteOrder.LITTLE_ENDIAN);
-            buff.putInt((int)(mUrl.length() + 1 + 2));
+            buff.putInt((int)(urlLen + 1 + 2));
+            System.arraycopy(len, 0, toSend, offset, len.length);
+            offset += len.length;
+            
             byte[] clientType = {(byte)0x00};
+            System.arraycopy(clientType, 0, toSend, offset, clientType.length);
+            offset += clientType.length;
+            
+            byte[] strLen = new byte[2];
+            buff = ByteBuffer.wrap(strLen);
+            buff.order(ByteOrder.LITTLE_ENDIAN);
+            buff.putShort((short) urlLen);
+            System.arraycopy(strLen, 0, toSend, offset, strLen.length);
+            offset += strLen.length; 
+            
             byte[] url = mUrl.getBytes();
+            System.arraycopy(url, 0, toSend, offset, url.length);
             
             //send
             try {
-                mOut.write(prefix, 0, prefix.length);
+                /*mOut.write(prefix, 0, prefix.length);
                 mOut.write(cmdNum, 0, cmdNum.length);
                 mOut.write(len, 0, len.length);
                 mOut.write(clientType, 0, clientType.length);
-                mOut.write(url, 0, url.length);
+                mOut.write(url, 0, url.length);*/
+                Log.d(TAG, "Cmd1: " + Arrays.toString(toSend));
+                mOut.write(toSend, 0, toSend.length);
                 mOut.flush();
             } catch (Exception e) {
                 Log.e(TAG, "Failed to send cmd1, IOException caught");
@@ -264,12 +292,13 @@ public class TcpClient {
                     
                     if (ret != 0) {
 						Log.e(TAG, "Failed to receive Cmd2");
-						shutdown();
+						mIsStop = true;
 					}
                 }
             } catch (IOException e) {
                 Log.e(TAG, "Failed to receive Cmd2 from server");
                 e.printStackTrace();
+                mIsStop = true;
             }
         }
         
@@ -282,6 +311,7 @@ public class TcpClient {
          * @param data
          */
         private int handleRecvData(byte[] data) {
+            Log.d(TAG, "Receive Cmd2: " + Arrays.toString(data));
             int size = data.length;
             if (size == 0) {
                 Log.e(TAG, "Receiving data size is 0");
@@ -290,11 +320,13 @@ public class TcpClient {
             ByteBuffer buff = ByteBuffer.wrap(data);
             buff.order(ByteOrder.LITTLE_ENDIAN);
             if (data[0] != 0x82) {
+                Log.e(TAG, "The prefix was: " + data[0] + ", was not 0x82");
                 return 1;
             }
             
             short cmdNum = buff.getShort(1);
             if (cmdNum != 2) {
+                Log.e(TAG, "Cmd num was " + cmdNum + ", " + "was not 2");
                 return 1;
             }
             
@@ -302,6 +334,7 @@ public class TcpClient {
             int urlLen = buff.getInt(7);
             
             if (urlLen == 0 || (11+urlLen+4) != size) {
+                Log.e(TAG, "The url of feedback was empty");
                 return 1;
             }
             
@@ -369,7 +402,7 @@ public class TcpClient {
     public class StreamingClient implements Runnable {
         private boolean mIsStop = false;
         private Handler mHandler = null;
-        private long mCmd3SendTime = 0l;
+        private long mCmd3SendTime = System.currentTimeMillis();
         
         public void setHandler(Handler handler) {
             this.mHandler = handler;
