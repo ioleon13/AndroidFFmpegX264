@@ -222,7 +222,6 @@ public class TcpClient {
          * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
          */
         public void sendCmd1() {
-            //mUrl = "";
             int urlLen = mUrl.length();
             byte[] toSend = new byte[1 + 2 + 4 + 1 + 2 + urlLen];
             int offset = 0;
@@ -319,7 +318,7 @@ public class TcpClient {
             }
             ByteBuffer buff = ByteBuffer.wrap(data);
             buff.order(ByteOrder.LITTLE_ENDIAN);
-            if (data[0] != 0x82) {
+            if (data[0] != (byte)0x82) {
                 Log.e(TAG, "The prefix was: " + data[0] + ", was not 0x82");
                 return 1;
             }
@@ -333,7 +332,7 @@ public class TcpClient {
             int cmdLen = buff.getInt(3);
             int urlLen = buff.getInt(7);
             
-            if (urlLen == 0 || (11+urlLen+4) != size) {
+            if (urlLen == 0) {
                 Log.e(TAG, "The url of feedback was empty");
                 return 1;
             }
