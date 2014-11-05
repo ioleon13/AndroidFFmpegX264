@@ -191,6 +191,7 @@ public class TcpClient {
     
     private void shutdown() {
         try {
+            Log.d(TAG, "close socket");
             mSocket.close();
         } catch (IOException e) {
             e.printStackTrace();
@@ -466,7 +467,8 @@ public class TcpClient {
             }
             ByteBuffer buff = ByteBuffer.wrap(data);
             buff.order(ByteOrder.LITTLE_ENDIAN);
-            if (data[0] != 0x82) {
+            if (data[0] != (byte)0x82) {
+                Log.e(TAG, "The prefix was: " + data[0] + ", was not 0x82");
                 return 1;
             }
             
@@ -502,9 +504,6 @@ public class TcpClient {
          */
         private int handleRecvCmd4(ByteBuffer buff, int size) {
         	int cmdLen = buff.getInt(3);
-        	if (cmdLen != size) {
-                return 1;
-            }
         	
         	byte access = buff.get(7);
         	
@@ -532,13 +531,11 @@ public class TcpClient {
          */
         private int handleRecvCmd6(ByteBuffer buff, int size) {
         	int cmdLen = buff.getInt(3);
-        	if (cmdLen != size) {
-                return 1;
-            }
         	
         	int strLen = buff.getInt(7);
             
             if (strLen == 0) {
+                Log.e(TAG, "The heartbeat string was empty");
                 return 1;
             }
             
@@ -564,23 +561,37 @@ public class TcpClient {
          * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
          */
         public void sendCmd3() {
-        	byte[] prefix = {(byte) 0x82};
+            byte[] toSend = new byte[1 + 2 + 4 + 1];
+            int offset = 0;
+            
+            byte[] prefix = {(byte) 0x82};
+            System.arraycopy(prefix, 0, toSend, offset, prefix.length);
+            offset += prefix.length;
+            
             byte[] cmdNum = new byte[2];
             ByteBuffer buff = ByteBuffer.wrap(cmdNum);
             buff.order(ByteOrder.LITTLE_ENDIAN);
             buff.putShort((short) 3);
+            System.arraycopy(cmdNum, 0, toSend, offset, cmdNum.length);
+            offset += cmdNum.length;
+            
             byte[] len = new byte[4];
             buff = ByteBuffer.wrap(len);
             buff.order(ByteOrder.LITTLE_ENDIAN);
-            buff.putInt((int) 1);
+            buff.putInt(1);
+            System.arraycopy(len, 0, toSend, offset, len.length);
+            offset += len.length;
+            
             byte[] clientType = {(byte)0x00};
+            System.arraycopy(clientType, 0, toSend, offset, clientType.length);
             
             //send
             try {
-                mOut.write(prefix, 0, prefix.length);
+                /*mOut.write(prefix, 0, prefix.length);
                 mOut.write(cmdNum, 0, cmdNum.length);
                 mOut.write(len, 0, len.length);
-                mOut.write(clientType, 0, clientType.length);
+                mOut.write(clientType, 0, clientType.length);*/
+                mOut.write(toSend, offset, toSend.length);
                 mOut.flush();
             } catch (Exception e) {
                 Log.e(TAG, "Failed to send cmd3, IOException caught");
@@ -601,37 +612,54 @@ public class TcpClient {
          * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
          */
         public void sendCmd5(byte[] data, int timestamp) {
+            int dataLen = data.length;
+            byte[] toSend = new byte[1 + 2 + 4 + 4 + 4 + dataLen];
+            int offset = 0;
+            
             byte[] prefix = {(byte) 0x82};
+            System.arraycopy(prefix, 0, toSend, offset, prefix.length);
+            offset += prefix.length;
             
             byte[] cmdNum = new byte[2];
             ByteBuffer buff = ByteBuffer.wrap(cmdNum);
             buff.order(ByteOrder.LITTLE_ENDIAN);
             buff.putShort((short) 5);
+            System.arraycopy(cmdNum, 0, toSend, offset, cmdNum.length);
+            offset += cmdNum.length;
             
             byte[] len = new byte[4];
             buff = ByteBuffer.wrap(len);
             buff.order(ByteOrder.LITTLE_ENDIAN);
-            buff.putInt((int) (4 + 4 + data.length));
+            buff.putInt(4 + 4 + data.length);
+            System.arraycopy(len, 0, toSend, offset, len.length);
+            offset += len.length;
             
             byte[] timeStamp = new byte[4];
             buff = ByteBuffer.wrap(timeStamp);
             buff.order(ByteOrder.LITTLE_ENDIAN);
             buff.putInt(timestamp);
+            System.arraycopy(timeStamp, 0, toSend, offset, timeStamp.length);
+            offset += timeStamp.length;
             
             byte[] payloadLen = new byte[4];
             buff = ByteBuffer.wrap(payloadLen);
             buff.order(ByteOrder.LITTLE_ENDIAN);
             buff.putInt(data.length);
+            System.arraycopy(payloadLen, 0, toSend, offset, payloadLen.length);
+            offset += payloadLen.length;
+            
+            System.arraycopy(data, 0, toSend, offset, dataLen);
             
             
             //send
             try {
-                mOut.write(prefix, 0, prefix.length);
+                /*mOut.write(prefix, 0, prefix.length);
                 mOut.write(cmdNum, 0, cmdNum.length);
                 mOut.write(len, 0, len.length);
                 mOut.write(timeStamp, 0, timeStamp.length);
                 mOut.write(payloadLen, 0, payloadLen.length);
-                mOut.write(data, 0, data.length);
+                mOut.write(data, 0, data.length);*/
+                mOut.write(toSend, 0, toSend.length);
                 mOut.flush();
             } catch (Exception e) {
                 Log.e(TAG, "Failed to send cmd3, IOException caught");
