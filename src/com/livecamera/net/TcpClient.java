@@ -331,17 +331,21 @@ public class TcpClient {
             }
             
             int cmdLen = buff.getInt(3);
-            int urlLen = buff.getInt(7);
+            short urlLen = buff.getShort(7);
             
             if (urlLen == 0) {
                 Log.e(TAG, "The url of feedback was empty");
                 return 1;
             }
             
+            Log.d(TAG, "received url length: " + urlLen);
+            
             byte[] url = new byte[urlLen];
-            buff.get(url, 11, urlLen);
+            for (int i = 0; i < url.length; i++) {
+                url[i] = buff.get(i + 9);
+            }
             String parsedUrl = new String(url, 0, urlLen);
-            int port = buff.getInt(11 + urlLen);
+            int port = buff.getInt(9 + urlLen);
             Log.i(TAG, "Success to receive Cmd2 <" + parsedUrl + " : " + port + ">");
             
             //send message
