@@ -19,9 +19,6 @@ import android.util.Log;
 public class TcpClient {
     private static final String TAG = "TcpClient";
     
-    private Socket mSocket = null;
-    private OutputStream mOut;
-    private InputStream mIn;
     private String mIPAdress = "127.0.0.1";
     private int mServerPort1 = 8282;
     private int mServerPort2;
@@ -59,9 +56,6 @@ public class TcpClient {
         mURLClient = new UrlClient();
         mURLClient.setHandler(mClientHandler);
         
-        mStreamClient = new StreamingClient();
-        mStreamClient.setHandler(mClientHandler);
-        
         new Thread(runnable).start();
     }
     
@@ -74,6 +68,18 @@ public class TcpClient {
             if (isConnected) {
                 mURLClient.start();
                 mURLClient.sendCmd1();
+            }
+        }
+    };
+    
+    Runnable streamRun = new Runnable() {
+        
+        @Override
+        public void run() {
+            boolean isConnected = mStreamClient.connect();
+            if (isConnected) {
+                mStreamClient.start();
+                mStreamClient.sendCmd3();
             }
         }
     };
@@ -96,39 +102,6 @@ public class TcpClient {
         return mStreamingAllowed;
     }
     
-    /**
-     * connect to server, after send Cmd1, receive Cmd2, use the port2 reconnect to the server
-     * @param port
-     * @return
-     */
-    public boolean connect(int port) {
-        if (mSocket != null) {
-            shutdown();
-        }
-        
-        try {
-            mSocket = new Socket();
-            Log.d(TAG, "connect to <" + mIPAdress + ":" + port + ">");
-            mSocket.connect(new InetSocketAddress(mIPAdress, port),
-                    mTimeoutConn);
-            mOut = mSocket.getOutputStream();
-            mIn = mSocket.getInputStream();
-        } catch (UnknownHostException e) {
-            Log.e(TAG, "Failed to connect <" + mIPAdress + ":" + port + ">"
-                    + ", error: unknown host");
-            e.printStackTrace();
-            return false;
-        } catch (IOException e) {
-            Log.e(TAG, "Failed to connect <" + mIPAdress + ":" + port + ">"
-                    + ", error: io exception");
-            e.printStackTrace();
-            return false;
-        }
-        
-        Log.i(TAG, "Success to connect <" + mIPAdress + ":" + port + ">");
-        return true;
-    }
-    
     
     @SuppressLint("HandlerLeak")
     private void createHander() {
@@ -141,8 +114,8 @@ public class TcpClient {
                 	mServerPort2 = msg.arg1;
                 	mUrl = (String)msg.obj;
                 	
-                    //stop UrlClient and start StreamClient to send Cmd3
-                	startStreamClient();
+                    //stop UrlClient
+                	stopUrlClient();
                     break;
                     
                 case MessageTypes.STREAMING_ALLOWED:
@@ -158,6 +131,10 @@ public class TcpClient {
                     String HeartBeatStr = (String)msg.obj;
                     //handle heartbeat
                     break;
+                    
+                case MessageTypes.PORT1_CLOSED:
+                    startStreamClient();
+                    break;
 
                 default:
                     break;
@@ -170,38 +147,27 @@ public class TcpClient {
     
     
     private void startStreamClient() {
-    	//first: stop UrlClient
-    	if (mURLClient != null) {
-			mURLClient.stop();
-		}
+    	mStreamClient = new StreamingClient();
+        mStreamClient.setHandler(mClientHandler);
     	
     	//second: StreamClient connect
-    	if (mStreamClient != null) {
-    		boolean isConnected = mStreamClient.connect();
-    		
-    		//third: start listen and send Cmd3
-    		if (isConnected) {
-				mStreamClient.start();
-				mStreamClient.sendCmd3();
-			}
-		}
-    	
+    	new Thread(streamRun).start();
     }
     
     
-    private void shutdown() {
-        try {
-            Log.d(TAG, "close socket");
-            mSocket.close();
-        } catch (IOException e) {
-            e.printStackTrace();
+    private void stopUrlClient() {
+        //stop UrlClient
+        if (mURLClient != null) {
+            mURLClient.stop();
         }
-        
-        mSocket = null;
     }
     
     
     public class UrlClient implements Runnable {
+        private Socket mSocket = null;
+        private OutputStream mOut;
+        private InputStream mIn;
+        
         private boolean mIsStop = false;
         private Handler mHandler = null;
         private long mCmd1SendTime = System.currentTimeMillis();
@@ -211,8 +177,50 @@ public class TcpClient {
         }
         
         
+        private void shutdown() {
+            try {
+                Log.d(TAG, "close socket");
+                mSocket.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            
+            mSocket = null;
+            
+            Message message = new Message();
+            message.what = MessageTypes.PORT1_CLOSED;
+            if (mHandler != null) {
+                mHandler.sendMessage(message);
+            }
+        }
+        
+        
         public boolean connect() {
-            return TcpClient.this.connect(mServerPort1);
+            if (mSocket != null) {
+                shutdown();
+            }
+            
+            try {
+                mSocket = new Socket();
+                Log.d(TAG, "connect to <" + mIPAdress + ":" + mServerPort1 + ">");
+                mSocket.connect(new InetSocketAddress(mIPAdress, mServerPort1),
+                        mTimeoutConn);
+                mOut = mSocket.getOutputStream();
+                mIn = mSocket.getInputStream();
+            } catch (UnknownHostException e) {
+                Log.e(TAG, "Failed to connect <" + mIPAdress + ":" + mServerPort1 + ">"
+                        + ", error: unknown host");
+                e.printStackTrace();
+                return false;
+            } catch (IOException e) {
+                Log.e(TAG, "Failed to connect <" + mIPAdress + ":" + mServerPort1 + ">"
+                        + ", error: io exception");
+                e.printStackTrace();
+                return false;
+            }
+            
+            Log.i(TAG, "Success to connect <" + mIPAdress + ":" + mServerPort1 + ">");
+            return true;
         }
         
         
@@ -404,6 +412,10 @@ public class TcpClient {
     
     
     public class StreamingClient implements Runnable {
+        private Socket mSocket = null;
+        private OutputStream mOut;
+        private InputStream mIn;
+        
         private boolean mIsStop = false;
         private Handler mHandler = null;
         private long mCmd3SendTime = System.currentTimeMillis();
@@ -412,8 +424,44 @@ public class TcpClient {
             this.mHandler = handler;
         }
         
+        private void shutdown() {
+            try {
+                Log.d(TAG, "close socket");
+                Log.d(TAG, Log.getStackTraceString(new Throwable()));
+                mSocket.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            
+            mSocket = null;
+        }
+        
         public boolean connect() {
-            return TcpClient.this.connect(mServerPort2);
+            if (mSocket != null) {
+                shutdown();
+            }
+            
+            try {
+                mSocket = new Socket();
+                Log.d(TAG, "connect to <" + mIPAdress + ":" + mServerPort2 + ">");
+                mSocket.connect(new InetSocketAddress(mIPAdress, mServerPort2),
+                        mTimeoutConn);
+                mOut = mSocket.getOutputStream();
+                mIn = mSocket.getInputStream();
+            } catch (UnknownHostException e) {
+                Log.e(TAG, "Failed to connect <" + mIPAdress + ":" + mServerPort2 + ">"
+                        + ", error: unknown host");
+                e.printStackTrace();
+                return false;
+            } catch (IOException e) {
+                Log.e(TAG, "Failed to connect <" + mIPAdress + ":" + mServerPort2 + ">"
+                        + ", error: io exception");
+                e.printStackTrace();
+                return false;
+            }
+            
+            Log.i(TAG, "Success to connect <" + mIPAdress + ":" + mServerPort2 + ">");
+            return true;
         }
 
         @Override
@@ -463,7 +511,8 @@ public class TcpClient {
         
         private int handleRecvData(byte[] data) {
         	int ret = 0;
-        	
+            Log.d(TAG, "Receive Cmd4 or Cmd6: " + Arrays.toString(data));
+
         	int size = data.length;
             if (size == 0) {
                 Log.e(TAG, "Receiving data size is 0");
@@ -595,7 +644,7 @@ public class TcpClient {
                 mOut.write(cmdNum, 0, cmdNum.length);
                 mOut.write(len, 0, len.length);
                 mOut.write(clientType, 0, clientType.length);*/
-                mOut.write(toSend, offset, toSend.length);
+                mOut.write(toSend, 0, toSend.length);
                 mOut.flush();
             } catch (Exception e) {
                 Log.e(TAG, "Failed to send cmd3, IOException caught");
@@ -666,11 +715,11 @@ public class TcpClient {
                 mOut.write(toSend, 0, toSend.length);
                 mOut.flush();
             } catch (Exception e) {
-                Log.e(TAG, "Failed to send cmd3, IOException caught");
+                Log.e(TAG, "Failed to send cmd5, IOException caught");
                 e.printStackTrace();
             }
             
-            Log.i(TAG, "Successed to send Cmd3");
+            Log.i(TAG, "Successed to send Cmd5");
         }
         
         public synchronized void start() {
