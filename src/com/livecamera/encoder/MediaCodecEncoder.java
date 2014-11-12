@@ -14,6 +14,7 @@ import java.util.concurrent.TimeUnit;
 
 import com.livecamera.net.TcpClient;
 import com.livecamera.stream.video.VideoParam;
+import com.livecamera.surface.GLSurfaceView;
 
 import android.annotation.SuppressLint;
 import android.hardware.Camera;
@@ -24,7 +25,8 @@ import android.media.MediaFormat;
 import android.util.Log;
 
 public class MediaCodecEncoder {
-	private String TAG = "MediaCodecEncoder";
+	private static final String TAG = "MediaCodecEncoder";
+	private static final boolean VERBOSE = true;
 	
 	private static final String MIME_TYPE = "video/avc";
 	private static final int IFRAME_INTERVAL = 10;          // 10 seconds between I-frames
@@ -49,6 +51,10 @@ public class MediaCodecEncoder {
     private int mColorFormat = 0;
     
     private boolean mSemiPlanar = false;
+    
+    private GLSurfaceView mSurfaceView = null;
+    
+    private boolean mEncodeFromSurface = true;
 	
 	public MediaCodecEncoder() {
         super();
@@ -73,6 +79,14 @@ public class MediaCodecEncoder {
 	public void setVideoParam(VideoParam p) {
 		mVideoParam = p;
 	}
+	
+	public void setSurfaceView(GLSurfaceView view) {
+        mSurfaceView = view;
+    }
+    
+    public void setEncodeFromSurface(boolean encodeFromSurface) {
+        mEncodeFromSurface = encodeFromSurface;
+    }
 	
 	@SuppressLint("NewApi")
 	public void start() {

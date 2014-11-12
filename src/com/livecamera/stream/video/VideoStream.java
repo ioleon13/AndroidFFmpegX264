@@ -15,6 +15,7 @@ import android.view.SurfaceView;
 
 import com.livecamera.encoder.MediaCodecEncoder;
 import com.livecamera.encoder.h264encoder;
+import com.livecamera.surface.GLSurfaceView;
 import com.livecamera.stream.MediaStream;
 
 @SuppressLint("NewApi")
@@ -22,7 +23,7 @@ public class VideoStream extends MediaStream {
 	protected final static String TAG = "VideoStream";
 	
 	protected SurfaceHolder.Callback mSurfaceHolderCallback = null;
-	protected SurfaceView mSurfaceView = null;
+	protected GLSurfaceView mSurfaceView = null;
 	protected int mVideoEncoder = 0;
 	protected int mCameraId = 0;
 	protected int mRequestedOrientation = 0;
@@ -36,6 +37,8 @@ public class VideoStream extends MediaStream {
 	
 	protected boolean mFlashEnabled = false;
 	protected boolean mSurfaceReady = false;
+	
+	protected boolean mMediaCodecFromSurface = true;
 	
 	protected VideoParam mRequestedParam = VideoParam.DEFAULT_VIDEO_PARAM.clone();
 	protected VideoParam mParam = mRequestedParam.clone();
@@ -68,8 +71,9 @@ public class VideoStream extends MediaStream {
 	
 	/**
 	 * switch between the front and back facing camera
+	 * @throws Throwable 
 	 */
-	public void switchCamera() throws RuntimeException, IOException {
+	public void switchCamera() throws Throwable {
 	    if (Camera.getNumberOfCameras() == 1) {
             throw new IllegalStateException("There was only one camera!");
         }
@@ -102,7 +106,7 @@ public class VideoStream extends MediaStream {
 	/**
 	 * set surface view
 	 */
-	public synchronized void setSurfaceView(SurfaceView view) {
+	public synchronized void setSurfaceView(GLSurfaceView view) {
 	    mSurfaceView = view;
 	    
 	    if (mSurfaceHolderCallback != null && mSurfaceView != null
@@ -189,8 +193,9 @@ public class VideoStream extends MediaStream {
 	
 	/**
 	 * start the stream
+	 * @throws Throwable 
 	 */
-	public synchronized void start() throws IllegalStateException, IOException {
+	public synchronized void start() throws Throwable {
 	    if (!mPreviewStarted) {
             mPreviewRunning = false;
         }
@@ -264,7 +269,12 @@ public class VideoStream extends MediaStream {
                 mCamera.setDisplayOrientation(mOrientation);
                 
                 try {
-                    mCamera.setPreviewDisplay(mSurfaceView.getHolder());
+                    if (mMediaCodecFromSurface) {
+                        mSurfaceView.startGLThread();
+                        mCamera.setPreviewTexture(mSurfaceView.getSurfaceTexture());
+                    } else {
+                        mCamera.setPreviewDisplay(mSurfaceView.getHolder());
+                    }
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -391,8 +401,9 @@ public class VideoStream extends MediaStream {
 	
 	/**
 	 * encode with mediacodec
+	 * @throws Throwable 
 	 */
-	protected void encodeWithMediaCodec() {
+	protected void encodeWithMediaCodec() throws Throwable {
 	    Log.d(TAG, "Video encoded with MediaCodec API");
 	    
 	    //reopen if need
@@ -406,6 +417,8 @@ public class VideoStream extends MediaStream {
         
         try {
             mMediaCodecEncoder = new MediaCodecEncoder();
+            mMediaCodecEncoder.setSurfaceView(mSurfaceView);
+            mMediaCodecEncoder.setEncodeFromSurface(mMediaCodecFromSurface);
             mMediaCodecEncoder.setVideoParam(mParam);
             mMediaCodecEncoder.setCamera(mCamera);
             mMediaCodecEncoder.start();

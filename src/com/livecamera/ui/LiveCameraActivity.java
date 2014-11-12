@@ -100,6 +100,9 @@ public class LiveCameraActivity extends Activity implements OnClickListener {
                 } catch (IOException e) {
                     // TODO Auto-generated catch block
                     e.printStackTrace();
+                } catch (Throwable e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
                 }
                 mStarted = true;
             }
