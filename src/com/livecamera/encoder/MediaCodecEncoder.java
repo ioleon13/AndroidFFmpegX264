@@ -22,8 +22,11 @@ import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
 import android.media.MediaCodecList;
 import android.media.MediaFormat;
+import android.opengl.GLES20;
 import android.util.Log;
+import android.view.Surface;
 
+@SuppressLint("NewApi")
 public class MediaCodecEncoder {
 	private static final String TAG = "MediaCodecEncoder";
 	private static final boolean VERBOSE = true;
@@ -34,6 +37,7 @@ public class MediaCodecEncoder {
 	private Camera mCamera;
 	
 	private MediaCodec mMediaCodec;
+	private MediaCodecInfo mCodecInfo;
 	
 	private VideoParam mVideoParam = VideoParam.DEFAULT_VIDEO_PARAM.clone();
 	
@@ -46,7 +50,6 @@ public class MediaCodecEncoder {
 	//network
     /*private DatagramSocket mSocket;
     private InetAddress mAddress;*/
-	private TcpClient mTcpClient;
     
     private int mColorFormat = 0;
     
@@ -55,6 +58,18 @@ public class MediaCodecEncoder {
     private GLSurfaceView mSurfaceView = null;
     
     private boolean mEncodeFromSurface = true;
+    
+    private boolean mStop = false;
+    
+    private static final int TEST_Y = 120;                  // YUV values for colored rect
+    private static final int TEST_U = 160;
+    private static final int TEST_V = 200;
+    private static final int TEST_R0 = 0;                   // RGB equivalent of {0,0,0}
+    private static final int TEST_G0 = 136;
+    private static final int TEST_B0 = 0;
+    private static final int TEST_R1 = 236;                 // RGB equivalent of {120,160,200}
+    private static final int TEST_G1 = 50;
+    private static final int TEST_B1 = 186;
 	
 	public MediaCodecEncoder() {
         super();
@@ -69,7 +84,6 @@ public class MediaCodecEncoder {
             // TODO Auto-generated catch block
             e.printStackTrace();
         }*/
-        mTcpClient = new TcpClient("192.168.2.104", "");
     }
 
     public void setCamera(Camera camera) {
@@ -94,7 +108,7 @@ public class MediaCodecEncoder {
 		//measureFramerate();
 	    
 	    //start tcp client
-	    mTcpClient.start();
+	    //mTcpClient.start();
 		
 		mYUV420 = new byte[mVideoParam.width*mVideoParam.height*3/2];
 		mEncodedBuf = new byte[mVideoParam.width*mVideoParam.height*3/2];
@@ -107,20 +121,72 @@ public class MediaCodecEncoder {
             Log.w(TAG, e.toString());
         }
 		
-		MediaCodecInfo codecInfo = selectCodec(MIME_TYPE);
-        if (codecInfo == null) {
+		mCodecInfo = selectCodec(MIME_TYPE);
+        if (mCodecInfo == null) {
             // Don't fail CTS if they don't have an AVC codec (not here, anyway).
             Log.e(TAG, "Unable to find an appropriate codec for " + MIME_TYPE);
             return;
         }
-        Log.d(TAG, "found codec: " + codecInfo.getName());
-
-        mColorFormat = selectColorFormat(codecInfo, MIME_TYPE);
-        Log.d(TAG, "found colorFormat: " + mColorFormat);
+        
+        if(VERBOSE) Log.d(TAG, "found codec: " + mCodecInfo.getName());
+        
+        if (mEncodeFromSurface) {
+            if(VERBOSE) Log.d(TAG, "Encode video from surface");
+            encodeFromSurface();
+        } else {
+            if(VERBOSE) Log.d(TAG, "Encode video from preview callback buffer");
+            encodeFromBuffer();
+        }
+	}
+	
+	public void stop() {
+	    mStop = true;
+		if (mCamera != null) {
+		    if (mEncodeFromSurface) {
+                if (mSurfaceView != null) {
+                    mSurfaceView.removeMediaCodecSurface();
+                }
+            } else {
+                //mCamera.setPreviewCallbackWithBuffer(null);
+                mCamera.setPreviewCallback(null);
+            }
+			
+        }
+		
+		if (mMediaCodec != null && mEncodeFromSurface) {
+		    if (VERBOSE) Log.d(TAG, "signaling input EOS");
+            mMediaCodec.signalEndOfInputStream();
+        }
+	}
+	
+	public void release() {
+	    Log.e(TAG, "release the encoder");
+	    
+	    try {
+	        if (mMediaCodec != null) {
+	            mMediaCodec.stop();
+	            mMediaCodec.release();
+	            mMediaCodec = null;
+            }
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+	
+	
+	/**
+	 * encode video from onPreviewFrame buffer
+	 * @param codecInfo
+	 */
+	@SuppressLint("NewApi")
+	private void encodeFromBuffer() {
+		mColorFormat = selectColorFormat(mCodecInfo, MIME_TYPE);
+		if(VERBOSE) Log.d(TAG, "found colorFormat: " + mColorFormat);
         
         mSemiPlanar = isSemiPlanarYUV(mColorFormat);
 		
-        mMediaCodec = MediaCodec.createByCodecName(codecInfo.getName());
+        mMediaCodec = MediaCodec.createByCodecName(mCodecInfo.getName());
 
 		MediaFormat mediaFormat = MediaFormat.createVideoFormat(MIME_TYPE, mVideoParam.width,
 				mVideoParam.height);
@@ -139,17 +205,13 @@ public class MediaCodecEncoder {
 			
 			@Override
 			public void onPreviewFrame(byte[] data, Camera camera) {
-				int result = encodeBuffer(data, mEncodedBuf);
+				int result = doEncodeFromBuffer(data, mEncodedBuf);
 				
-				if (result > 0 
-                        && mTcpClient != null 
-                        && mTcpClient.streamingAllowed()) {
+				if (result > 0) {
                     /*DatagramPacket packet = new DatagramPacket(mEncodedBuf, result,
                             mAddress, 5000);
                     mSocket.send(packet);*/
                     //mRaf.write(mEncodedBuf, 0, result);
-                    mTcpClient.sendStreamData(mEncodedBuf,
-                            (int)System.nanoTime()/1000);
                 }
 			}
 		};
@@ -157,24 +219,63 @@ public class MediaCodecEncoder {
 		mCamera.setPreviewCallback(callback);
 	}
 	
-	public void stop() {
-		if (mCamera != null) {
-			//mCamera.setPreviewCallbackWithBuffer(null);
-		    mCamera.setPreviewCallback(null);
+	
+	@SuppressLint("NewApi")
+	private void encodeFromSurface() {
+		mColorFormat = MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface;
+		if(VERBOSE) Log.d(TAG, "found colorFormat: " + mColorFormat);
+
+		MediaFormat mediaFormat = MediaFormat.createVideoFormat(MIME_TYPE, mVideoParam.width,
+				mVideoParam.height);
+		mediaFormat.setInteger(MediaFormat.KEY_BIT_RATE, mVideoParam.bitrate);
+		mediaFormat.setInteger(MediaFormat.KEY_FRAME_RATE, mVideoParam.framerate);
+		mediaFormat.setInteger(MediaFormat.KEY_COLOR_FORMAT, mColorFormat);
+		mediaFormat.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, IFRAME_INTERVAL);
+		
+		mMediaCodec = MediaCodec.createByCodecName(mCodecInfo.getName());
+		mMediaCodec.configure(mediaFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
+		Surface surface = mMediaCodec.createInputSurface();
+		if (mSurfaceView != null) {
+            mSurfaceView.addMediaCodecSurface(surface);
         }
+		mMediaCodec.start();
+		
+		doEncodeFromSurface();
 	}
 	
-	public void release() {
-	    Log.e(TAG, "release the encoder");
-	    
-	    try {
-			mMediaCodec.stop();
-			mMediaCodec.release();
-			mMediaCodec = null;
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-	}
+	
+	/**
+     * Generates the presentation time for frame N, in microseconds.
+     */
+    private long computePresentationTime(int frameIndex) {
+        return 132 + frameIndex * 1000000 / mVideoParam.framerate;
+    }
+    
+    
+    /**
+     * Generates a frame of data using GL commands.
+     */
+    private void generateSurfaceFrame(int frameIndex) {
+        frameIndex %= 8;
+
+        int startX, startY;
+        if (frameIndex < 4) {
+            // (0,0) is bottom-left in GL
+            startX = frameIndex * (mVideoParam.width / 4);
+            startY = mVideoParam.height / 2;
+        } else {
+            startX = (7 - frameIndex) * (mVideoParam.width / 4);
+            startY = 0;
+        }
+
+        GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
+        GLES20.glClearColor(TEST_R0 / 255.0f, TEST_G0 / 255.0f, TEST_B0 / 255.0f, 1.0f);
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+        GLES20.glEnable(GLES20.GL_SCISSOR_TEST);
+        GLES20.glScissor(startX, startY, mVideoParam.width / 4, mVideoParam.height / 2);
+        GLES20.glClearColor(TEST_R1 / 255.0f, TEST_G1 / 255.0f, TEST_B1 / 255.0f, 1.0f);
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
+    }
 	
 	/**
 	 * computes the average framerate 
@@ -196,7 +297,7 @@ public class MediaCodecEncoder {
 				
 				if (i > 20) {
 					mVideoParam.framerate = (int) (1000000/(t/count) + 1);
-					Log.d(TAG, "The average of framerate is: " + mVideoParam.framerate);
+					if(VERBOSE) Log.d(TAG, "The average of framerate is: " + mVideoParam.framerate);
 					lock.release();
 				}
 			}
@@ -206,7 +307,7 @@ public class MediaCodecEncoder {
 		
 		try {
 			lock.tryAcquire(2, TimeUnit.SECONDS);
-			Log.d(TAG, "The framerate configurated is: " + mVideoParam.framerate);
+			if(VERBOSE) Log.d(TAG, "The framerate configurated is: " + mVideoParam.framerate);
 		} catch (InterruptedException e) {
 			e.printStackTrace();
 		}
@@ -250,7 +351,7 @@ public class MediaCodecEncoder {
 	 * encode buff
 	 */
 	@SuppressLint("NewApi")
-	private int encodeBuffer(byte[] input, byte[] output) {
+	private int doEncodeFromBuffer(byte[] input, byte[] output) {
 		int pos = 0;
 		
 		//the camera preview format was nv21, convert it to yuv420sp or yuv420p
@@ -305,6 +406,103 @@ public class MediaCodecEncoder {
 		}
 		
 		return pos;
+	}
+	
+	
+	private void doEncodeFromSurface() {
+	    final int TIMEOUT_USEC = 10000;
+	    int generateIndex = 0;
+	    boolean inputDone = false;
+	    boolean encoderDone = false;
+	    
+	    try {
+	        ByteBuffer[] outputBuffers = mMediaCodec.getOutputBuffers();
+	        MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
+	        
+	        while (!mStop) {
+	            if (!inputDone) {
+	                /*mInputSurface.makeCurrent();
+	                generateSurfaceFrame(generateIndex);
+	                mInputSurface.setPresentationTime(computePresentationTime(generateIndex));
+	                if (VERBOSE) Log.d(TAG, "inputSurface swapBuffers");
+	                mInputSurface.swapBuffers();*/
+	                
+	                generateIndex++;
+                }
+	            
+	            while (true) {
+	                if (!encoderDone) {
+	                    int pos = 0;
+	                    
+	                    int outputBufferIndex = mMediaCodec.dequeueOutputBuffer(bufferInfo, TIMEOUT_USEC);
+	                    if (outputBufferIndex == MediaCodec.INFO_TRY_AGAIN_LATER) {
+	                        Log.w(TAG, "no output available yet");
+	                        break;
+	                    } else if (outputBufferIndex == MediaCodec.INFO_OUTPUT_BUFFERS_CHANGED) {
+	                        //getOutputBuffers again
+	                        outputBuffers = mMediaCodec.getOutputBuffers();
+	                    } else if (outputBufferIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+	                        
+	                    } else if (outputBufferIndex < 0) {
+	                        Log.w(TAG, "unexpected result from mMediaCodec.dequeueOutputBuffer: " + outputBufferIndex);
+	                    } else {
+	                        ByteBuffer encodedData = outputBuffers[outputBufferIndex];
+	                        if (encodedData == null) {
+	                            throw new RuntimeException("encoderOutputBuffer " + outputBufferIndex +
+	                                    " was null");
+	                        }
+	                        
+	                        if (bufferInfo.size != 0) {
+	                            // adjust the ByteBuffer values to match BufferInfo (not needed?)
+	                            encodedData.position(bufferInfo.offset);
+	                            encodedData.limit(bufferInfo.offset + bufferInfo.size);
+
+	                            byte[] outData = new byte[bufferInfo.size];
+	                            encodedData.get(outData);
+	                            encodedData.position(bufferInfo.offset);
+	                            
+	                            if (mPpsSpsInfo != null) {
+	                                System.arraycopy(outData, 0, mEncodedBuf, pos, outData.length);
+	                                pos += outData.length;
+	                            } else {// pps sps info, save these in the first key frame
+	                                ByteBuffer ppsSpsBuffer = ByteBuffer.wrap(outData);
+	                                if (ppsSpsBuffer.getInt() == 0x00000001) {
+	                                    mPpsSpsInfo = new byte[outData.length];
+	                                    System.arraycopy(outData, 0, mPpsSpsInfo, 0, outData.length);
+	                                } else {
+	                                    Log.w(TAG, "unexpected pps sps info");
+	                                }
+	                            }
+	                        }
+
+	                        mMediaCodec.releaseOutputBuffer(outputBufferIndex, false);
+
+	                        if ((bufferInfo.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
+	                            encoderDone = true;
+	                            break;
+	                        }
+	                    }
+	                    
+	                    //keyframe, add pps sps info, 00 00 00 01 65
+	                    if (mEncodedBuf[4] == 0x65) {
+	                        System.arraycopy(mEncodedBuf, 0, mYUV420, 0, pos);
+	                        System.arraycopy(mPpsSpsInfo, 0, mEncodedBuf, 0, mPpsSpsInfo.length);
+	                        System.arraycopy(mYUV420, 0, mEncodedBuf, mPpsSpsInfo.length, pos);
+	                        pos += mPpsSpsInfo.length;
+	                    }
+	                    
+	                    if (pos > 0) {
+	                        Log.e(TAG, "write file");
+	                        mRaf.write(mEncodedBuf, 0, pos);
+	                    }
+	                }
+                }
+	            
+	            
+            }
+        } catch (Throwable t) {
+            t.printStackTrace();
+        }
 	}
 	
 	

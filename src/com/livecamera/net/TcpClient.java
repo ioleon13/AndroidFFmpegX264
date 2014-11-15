@@ -43,13 +43,19 @@ public class TcpClient {
     
     private RECEIVESTATE mRecvState;
 
-    public TcpClient(String ipAdress, String url) {
+    public TcpClient() {
         super();
         mRecvBuff = new byte[1024];
-        this.mIPAdress = ipAdress;
-        this.mUrl = url;
+        this.mIPAdress = "127.0.0.1";
+        this.mServerPort1 = 8282;
+        this.mUrl = "";
         this.mRecvState = RECEIVESTATE.WAITING;
         createHander();
+    }
+    
+    public void setDestination(String ipAdress, int port) {
+        this.mIPAdress = ipAdress;
+        this.mServerPort1 = port;
     }
     
     public void start() {

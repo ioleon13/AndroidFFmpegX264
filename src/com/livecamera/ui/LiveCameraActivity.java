@@ -10,6 +10,7 @@ import com.example.androidffmpegx264.R;
 import com.livecamera.stream.MediaStream;
 import com.livecamera.stream.video.VideoParam;
 import com.livecamera.stream.video.VideoStream;
+import com.livecamera.surface.GLSurfaceView;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
@@ -25,7 +26,7 @@ import android.widget.ImageButton;
 public class LiveCameraActivity extends Activity implements OnClickListener {
     static final public String TAG = "LiveCameraActivity";
     
-    private SurfaceView mSurfaceView;
+    private GLSurfaceView mSurfaceView;
     private ImageButton mStartStopView;
     
     private VideoStream mVideoStream;
@@ -40,7 +41,7 @@ public class LiveCameraActivity extends Activity implements OnClickListener {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.camera_preview);
         
-        mSurfaceView = (SurfaceView)findViewById(R.id.camera_view);
+        mSurfaceView = (GLSurfaceView)findViewById(R.id.camera_view);
         mStartStopView = (ImageButton)findViewById(R.id.live_start_stop);
         mStartStopView.setOnClickListener(this);
         
