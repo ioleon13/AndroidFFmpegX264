@@ -13,7 +13,7 @@
         android:src="@drawable/ic_control_play"
         android:background="@drawable/bg_control"/>
     
-    <SurfaceView 
+    <com.livecamera.surface.GLSurfaceView 
         android:id="@+id/camera_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"

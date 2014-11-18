@@ -8,7 +8,7 @@ public class H264Packetizer extends AbstractPacketizer implements Runnable{
     private Thread mThread = null;
     private int mNALULen = 0;
     private long mDelay = 0, mOldTime = 0;
-    private byte[] mSPS = null, mPPS = null;
+    private byte[] mSpsPpsInfo = null;
     private byte[] mHeader = new byte[5];
     private int mStreamType = 1;
     private int mCount = 0;
@@ -63,4 +63,21 @@ public class H264Packetizer extends AbstractPacketizer implements Runnable{
         }
     }
 
+    
+    private void send() {
+        
+    }
+    
+    private int read(byte[] buffer, int offset, int length) throws IOException {
+        int ret = 0, len = 0;
+        while (ret < length) {
+            len = mInputStream.read(buffer, offset+ret, length-ret);
+            if (len < 0) {
+                throw new IOException("end of stream");
+            } else {
+                ret += len;
+            }
+        }
+        return ret;
+    }
 }
