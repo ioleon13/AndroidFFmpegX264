@@ -1,6 +1,10 @@
 package com.livecamera.stream.packetizer;
 
+import android.annotation.SuppressLint;
+import android.util.Log;
+
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
 public class H264Packetizer extends AbstractPacketizer implements Runnable{
     public final static String TAG = "H264Packetizer";
@@ -19,6 +23,10 @@ public class H264Packetizer extends AbstractPacketizer implements Runnable{
 
     @Override
     public void start() {
+        if (mClient != null) {
+            mClient.start();
+        }
+        
         if (mThread == null) {
             mThread = new Thread(this);
             mThread.start();
@@ -56,7 +64,7 @@ public class H264Packetizer extends AbstractPacketizer implements Runnable{
         
         try {
             while (!Thread.interrupted()) {
-                
+                send();
             }
         } catch (Exception e) {
             // TODO: handle exception
@@ -64,8 +72,55 @@ public class H264Packetizer extends AbstractPacketizer implements Runnable{
     }
 
     
-    private void send() {
+    @SuppressLint("NewApi")
+    private void send() throws IOException {
+        if (mStreamType == 0) {
+            read(mHeader, 0, 5);
+            mNALULen = mHeader[3]&0xFF | (mHeader[2]&0xFF)<<8 |
+                    (mHeader[1]&0xFF)<<16 | (mHeader[0]&0xFF)<<24;
+        } else if(mStreamType == 1) {
+            read(mHeader, 0, 5);
+            mTimeStamp = ((MediaCodecInputStream)mInputStream)
+                    .getLastBufferinfo().presentationTimeUs*1000L;
+            mNALULen = mInputStream.available() + 1;
+            if(!(mHeader[0] == 0 && mHeader[1] == 0 && mHeader[2] == 0)) {
+                Log.e(TAG, "NAL units are not 0x00000001");
+                mStreamType = 2;
+                return;
+            }
+        } else {
+            read(mHeader, 0, 1);
+            mHeader[4] = mHeader[0];
+            mTimeStamp = ((MediaCodecInputStream)mInputStream)
+                    .getLastBufferinfo().presentationTimeUs*1000L;
+            mNALULen = mInputStream.available() + 1;
+        }
         
+        byte[] outData = new byte[mNALULen];
+        read(outData, 0, mNALULen-1);
+        
+        if (mSpsPpsInfo != null) {
+            if (mOutput != null) {
+                System.arraycopy(outData, 0, mOutput, 0, outData.length);
+            }
+        } else {
+            ByteBuffer ppsSpsBuffer = ByteBuffer.wrap(outData);
+            if (ppsSpsBuffer.getInt() == 0x00000001) {
+                mSpsPpsInfo = new byte[outData.length];
+                System.arraycopy(outData, 0, mSpsPpsInfo, 0, outData.length);
+            } else {
+                return;
+            }
+        }
+        
+        //keyframe, add pps sps info, 00 00 00 01 65
+        if (mOutput[4] == 0x65) {
+            //send pps sps
+            super.send(mSpsPpsInfo, (int)mTimeStamp);
+        }
+        
+        //send output
+        super.send(mOutput, (int)mTimeStamp);
     }
     
     private int read(byte[] buffer, int offset, int length) throws IOException {

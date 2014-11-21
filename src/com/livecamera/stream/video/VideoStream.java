@@ -17,6 +17,7 @@ import com.livecamera.encoder.MediaCodecEncoder;
 import com.livecamera.encoder.h264encoder;
 import com.livecamera.surface.GLSurfaceView;
 import com.livecamera.stream.MediaStream;
+import com.livecamera.stream.packetizer.H264Packetizer;
 
 @SuppressLint("NewApi")
 public class VideoStream extends MediaStream {
@@ -52,6 +53,7 @@ public class VideoStream extends MediaStream {
 	public VideoStream(int camera) {
 	    super();
 	    setCamera(camera);
+	    mPacketizer = new H264Packetizer();
 	}
 	
 	/**
@@ -421,6 +423,7 @@ public class VideoStream extends MediaStream {
             mMediaCodecEncoder.setEncodeFromSurface(mMediaCodecFromSurface);
             mMediaCodecEncoder.setVideoParam(mParam);
             mMediaCodecEncoder.setCamera(mCamera);
+            mMediaCodecEncoder.setPacketizer(mPacketizer);
             mMediaCodecEncoder.start();
         } catch (Exception e) {
             e.printStackTrace();

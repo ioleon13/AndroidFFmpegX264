@@ -3,14 +3,18 @@ package com.livecamera.stream.packetizer;
 import java.io.InputStream;
 
 import com.livecamera.net.TcpClient;
+import com.livecamera.stream.video.VideoParam;
 
 public abstract class AbstractPacketizer {
     private static final String TAG = "AbstractPacketizer";
     
     protected TcpClient mClient = null;
     protected InputStream mInputStream = null;
+    protected VideoParam mVideoParam = null;
     
     protected long mTimeStamp;
+    
+    protected byte[] mOutput = null;
     
     
     public AbstractPacketizer() {
@@ -21,6 +25,11 @@ public abstract class AbstractPacketizer {
         if (mClient != null) {
             mClient.setDestination(ipAdress, port);
         }
+    }
+    
+    public void setVideoParam(VideoParam param) {
+        mVideoParam = param;
+        mOutput = new byte[mVideoParam.height*mVideoParam.width*3/2];
     }
     
     public TcpClient getClient() {

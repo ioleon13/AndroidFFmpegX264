@@ -2,6 +2,7 @@ package com.livecamera.stream;
 
 import com.livecamera.encoder.MediaCodecEncoder;
 import com.livecamera.encoder.h264encoder;
+import com.livecamera.stream.packetizer.AbstractPacketizer;
 
 import android.annotation.SuppressLint;
 import android.media.MediaRecorder;
@@ -24,6 +25,8 @@ public class MediaStream {
 	protected h264encoder mH264Encoder;
 	protected MediaRecorder mMediaRecorder;
 	protected MediaCodecEncoder mMediaCodecEncoder;
+	
+	protected AbstractPacketizer mPacketizer = null;
 	
 	static {
 		try {
@@ -61,7 +64,9 @@ public class MediaStream {
                     mMediaRecorder.stop();
                     mMediaRecorder.release();
                     mMediaRecorder = null;
+                    mPacketizer.stop();
                 } else if (mMode == MODE_MEDIACODEC_API) {
+                    mPacketizer.stop();
                     mMediaCodecEncoder.stop();
                     mMediaCodecEncoder.release();
                     mMediaCodecEncoder = null;
