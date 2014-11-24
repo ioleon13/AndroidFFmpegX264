@@ -35,8 +35,6 @@ public class MediaCodecEncoder {
 	
 	private VideoParam mVideoParam = VideoParam.DEFAULT_VIDEO_PARAM.clone();
 	
-	private RandomAccessFile mRaf = null;
-	
 	private byte[] mYUV420 = null;
 	private byte[] mEncodedBuf = null;
 	private byte[] mPpsSpsInfo = null;
@@ -51,7 +49,7 @@ public class MediaCodecEncoder {
     
     private GLSurfaceView mSurfaceView = null;
     
-    private boolean mEncodeFromSurface = true;
+    private boolean mEncodeFromSurface = false;
     
     private AbstractPacketizer mPacketizer = null;
 	
@@ -100,14 +98,6 @@ public class MediaCodecEncoder {
 		
 		mYUV420 = new byte[mVideoParam.width*mVideoParam.height*3/2];
 		mEncodedBuf = new byte[mVideoParam.width*mVideoParam.height*3/2];
-		
-		//save file first for testing
-        try {
-            File file = new File("/sdcard/camera1.h264");
-            mRaf = new RandomAccessFile(file, "rw");
-        } catch (Exception e) {
-            Log.w(TAG, e.toString());
-        }
 		
 		mCodecInfo = selectCodec(MIME_TYPE);
         if (mCodecInfo == null) {
@@ -216,9 +206,10 @@ public class MediaCodecEncoder {
                         inputBuffers[bufferIndex].clear();
                         convertColorFormat(data, mYUV420, mVideoParam.width,
                                 mVideoParam.height);
-                        inputBuffers[bufferIndex] = ByteBuffer.wrap(mYUV420);
+                        inputBuffers[bufferIndex].put(mYUV420);
                         //convertor.convert(data, inputBuffers[bufferIndex]);
-                        mMediaCodec.queueInputBuffer(bufferIndex, 0, inputBuffers[bufferIndex].position(), now, 0);
+                        //Log.i(TAG, "queueInputBuffer, data size" + data.length);
+                        mMediaCodec.queueInputBuffer(bufferIndex, 0, mYUV420.length, now, 0);
                     } else {
                         Log.e(TAG,"No buffer available !");
                     }

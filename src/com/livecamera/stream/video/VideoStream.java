@@ -39,7 +39,7 @@ public class VideoStream extends MediaStream {
 	protected boolean mFlashEnabled = false;
 	protected boolean mSurfaceReady = false;
 	
-	protected boolean mMediaCodecFromSurface = true;
+	protected boolean mMediaCodecFromSurface = false;
 	
 	protected VideoParam mRequestedParam = VideoParam.DEFAULT_VIDEO_PARAM.clone();
 	protected VideoParam mParam = mRequestedParam.clone();
@@ -181,7 +181,7 @@ public class VideoStream extends MediaStream {
 	 * stop preview
 	 */
 	public synchronized void stopPreview() {
-	    if (mPreviewRunning) {
+	    if (mPreviewRunning && mCamera != null) {
 	        mCamera.stopPreview();
 	        mCamera.release();
 	        mCamera = null;

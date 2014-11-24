@@ -3,7 +3,9 @@ package com.livecamera.stream.packetizer;
 import android.annotation.SuppressLint;
 import android.util.Log;
 
+import java.io.File;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 
 public class H264Packetizer extends AbstractPacketizer implements Runnable{
@@ -16,6 +18,8 @@ public class H264Packetizer extends AbstractPacketizer implements Runnable{
     private byte[] mHeader = new byte[5];
     private int mStreamType = 1;
     private int mCount = 0;
+    
+    private RandomAccessFile mRaf = null;
 
     public H264Packetizer() {
         super();
@@ -23,6 +27,14 @@ public class H264Packetizer extends AbstractPacketizer implements Runnable{
 
     @Override
     public void start() {
+        //save file first for testing
+        try {
+            File file = new File("/sdcard/camera1.h264");
+            mRaf = new RandomAccessFile(file, "rw");
+        } catch (Exception e) {
+            Log.w(TAG, e.toString());
+        }
+        
         if (mClient != null) {
             mClient.start();
         }
@@ -35,6 +47,7 @@ public class H264Packetizer extends AbstractPacketizer implements Runnable{
 
     @Override
     public void stop() {
+        Log.i(TAG, "H264Packetizer stop");
         if (mThread != null) {
             try {
                 mInputStream.close();
@@ -117,10 +130,12 @@ public class H264Packetizer extends AbstractPacketizer implements Runnable{
         if (mOutput[4] == 0x65) {
             //send pps sps
             super.send(mSpsPpsInfo, (int)mTimeStamp);
+            mRaf.write(mSpsPpsInfo, 0, mSpsPpsInfo.length);
         }
         
         //send output
         super.send(mOutput, (int)mTimeStamp);
+        mRaf.write(outData, 0, mNALULen);
     }
     
     private int read(byte[] buffer, int offset, int length) throws IOException {
