@@ -7,6 +7,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 
 public class H264Packetizer extends AbstractPacketizer implements Runnable{
     public final static String TAG = "H264Packetizer";
@@ -109,8 +110,11 @@ public class H264Packetizer extends AbstractPacketizer implements Runnable{
             mNALULen = mInputStream.available() + 1;
         }
         
-        byte[] outData = new byte[mNALULen];
-        read(outData, 0, mNALULen-1);
+        byte[] outData = new byte[mNALULen+5];
+        System.arraycopy(mHeader, 0, outData, 0, mHeader.length);
+        read(outData, 6, mNALULen-1);
+        
+        Log.i(TAG, "out data from encoder: " + Arrays.toString(outData));
         
         if (mSpsPpsInfo != null) {
             if (mOutput != null) {
@@ -119,9 +123,11 @@ public class H264Packetizer extends AbstractPacketizer implements Runnable{
         } else {
             ByteBuffer ppsSpsBuffer = ByteBuffer.wrap(outData);
             if (ppsSpsBuffer.getInt() == 0x00000001) {
+                
                 mSpsPpsInfo = new byte[outData.length];
                 System.arraycopy(outData, 0, mSpsPpsInfo, 0, outData.length);
             } else {
+                Log.e(TAG, "Do not find pps sps info: " + Arrays.toString(outData));
                 return;
             }
         }
