@@ -57,6 +57,7 @@ public class MediaStream {
 	
 	@SuppressLint("NewApi")
     public synchronized void stop() {
+	    Log.i(TAG, "stop, mStreaming = " + mStreaming);
 	    if (mStreaming) {
             try {
                 mStreaming = false;
@@ -66,6 +67,7 @@ public class MediaStream {
                     mMediaRecorder = null;
                     mPacketizer.stop();
                 } else if (mMode == MODE_MEDIACODEC_API) {
+                    Log.i(TAG, "stop ,mMode = " + mMode);
                     mPacketizer.stop();
                     mMediaCodecEncoder.stop();
                     mMediaCodecEncoder.release();

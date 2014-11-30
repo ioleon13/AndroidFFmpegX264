@@ -15,6 +15,7 @@ public abstract class AbstractPacketizer {
     protected long mTimeStamp;
     
     protected byte[] mOutput = null;
+    protected byte[] mEncodedBuf = null;
     
     
     public AbstractPacketizer() {
@@ -30,6 +31,7 @@ public abstract class AbstractPacketizer {
     public void setVideoParam(VideoParam param) {
         mVideoParam = param;
         mOutput = new byte[mVideoParam.height*mVideoParam.width*3/2];
+        mEncodedBuf = new byte[mVideoParam.width*mVideoParam.height*3/2];
     }
     
     public TcpClient getClient() {

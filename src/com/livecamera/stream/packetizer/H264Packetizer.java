@@ -110,20 +110,20 @@ public class H264Packetizer extends AbstractPacketizer implements Runnable{
             mNALULen = mInputStream.available() + 1;
         }
         
+        int pos = 0;
         byte[] outData = new byte[mNALULen+5];
         System.arraycopy(mHeader, 0, outData, 0, mHeader.length);
         read(outData, 6, mNALULen-1);
-        
-        Log.i(TAG, "out data from encoder: " + Arrays.toString(outData));
-        
+                
         if (mSpsPpsInfo != null) {
             if (mOutput != null) {
                 System.arraycopy(outData, 0, mOutput, 0, outData.length);
+                pos += outData.length;
             }
         } else {
             ByteBuffer ppsSpsBuffer = ByteBuffer.wrap(outData);
             if (ppsSpsBuffer.getInt() == 0x00000001) {
-                
+                Log.i(TAG, "Find pps sps info: " + Arrays.toString(outData));
                 mSpsPpsInfo = new byte[outData.length];
                 System.arraycopy(outData, 0, mSpsPpsInfo, 0, outData.length);
             } else {
@@ -134,14 +134,20 @@ public class H264Packetizer extends AbstractPacketizer implements Runnable{
         
         //keyframe, add pps sps info, 00 00 00 01 65
         if (mOutput[4] == 0x65) {
-            //send pps sps
-            super.send(mSpsPpsInfo, (int)mTimeStamp);
-            mRaf.write(mSpsPpsInfo, 0, mSpsPpsInfo.length);
+            //add pps sps
+            Log.i(TAG, "Find a key frame, add sps pps info, frame length = " +
+            pos + ", spspps info length = " + mSpsPpsInfo.length);
+            System.arraycopy(mOutput, 0, mEncodedBuf, 0, pos);
+            System.arraycopy(mSpsPpsInfo, 0, mOutput, 0, mSpsPpsInfo.length);
+            System.arraycopy(mEncodedBuf, 0, mOutput, mSpsPpsInfo.length, pos);
+            pos += mSpsPpsInfo.length;
         }
         
-        //send output
-        super.send(mOutput, (int)mTimeStamp);
-        mRaf.write(outData, 0, mNALULen);
+        if (pos > 0) {
+            //send output
+            //super.send(mOutput, (int)mTimeStamp);
+            mRaf.write(mOutput, 0, pos);
+        }
     }
     
     private int read(byte[] buffer, int offset, int length) throws IOException {

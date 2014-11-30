@@ -221,6 +221,7 @@ public class VideoStream extends MediaStream {
             /*if (mMode == MODE_MEDIACODEC_API) {
                 mCamera.setPreviewCallbackWithBuffer(null);
             }*/
+            Log.i(TAG, "call stop");
             super.stop();
             
             /*if (!mPreviewRunning) {
