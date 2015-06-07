@@ -179,7 +179,9 @@ public class h264encoder {
 	    
 	    return rawImage;
     }
-	
+
+	//liya test
+
 	//native method
     private native long CompressBegin(int width, int height);
     private native int CompressEnd(long encoder);
